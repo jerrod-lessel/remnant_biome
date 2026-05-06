@@ -18,8 +18,8 @@ It's designed for people who don't already know what a chill hour is. By the end
 
 | Subject | Metric | Viability threshold |
 |---|---|---|
-| Almonds | Chill hours (Nov–Feb) | 400 hrs/season |
-| Wine grapes | Chill hours + GDD | 150 hrs / 1000–2900 GDD |
+| Almonds | Chill hours (Nov-Feb) | 400 hrs/season |
+| Wine grapes | Chill hours + GDD | 150 hrs / 1000-2900 GDD |
 | Navel oranges | Frost risk days (Tmin < -2.2°C) | 0 days |
 | Avocados | Hard freeze days (Tmin < -3.3°C) | 0 days |
 | Navel orangeworm | Degree day accumulation (base 12.8°C) | < 800 DD |
@@ -32,7 +32,7 @@ It's designed for people who don't already know what a chill hour is. By the end
 
 **LOCA2-Hybrid CA** - primary climate data source
 - Statistically downscaled CMIP6 at ~3km resolution
-- Daily Tmax and Tmin, 1950–2100
+- Daily Tmax and Tmin, 1950-2100
 - 3 models: EC-Earth3, MIROC6, MRI-ESM2-0 (r1i1p1f1)
 - 3 scenarios: SSP2-4.5, SSP3-7.0, SSP5-8.5
 - Used by California's 5th Climate Assessment
@@ -132,7 +132,7 @@ Ensemble spread (p10/p90) is computed across three CMIP6 models using one realiz
 
 ## Status
 
-- [x] Data pipeline — download, compute, zarr output
+- [x] Data pipeline - download, compute, zarr output
 - [ ] Ensemble aggregation (median, p10, p90)
 - [ ] PNG tiling
 - [ ] MapLibre frontend
