@@ -1,0 +1,38 @@
+# Data directories - never commit raw or processed climate data
+data/
+
+# Python virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
+
+# Zarr temp files
+*.zarr/.zattrs.bak
+
+# VS Code
+.vscode/
+
+# Node (for when we build the frontend)
+node_modules/
+dist/
+.cache/
