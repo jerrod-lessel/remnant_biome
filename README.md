@@ -2,7 +2,7 @@
 
 **A free, interactive climate literacy tool showing how California's agricultural and pest climate envelopes shift from 1980 to 2100.**
 
-Built for [LesselGeospatial.com](https://lesselgeospatial.com) — *someone has to map this mess.*
+Built for [LesselGeospatial.com](https://lesselgeospatial.com) - *someone has to map this mess.*
 
 ---
 
@@ -30,7 +30,7 @@ It's designed for people who don't already know what a chill hour is. By the end
 
 ## Data sources
 
-**LOCA2-Hybrid CA** — primary climate data source
+**LOCA2-Hybrid CA** - primary climate data source
 - Statistically downscaled CMIP6 at ~3km resolution
 - Daily Tmax and Tmin, 1950–2100
 - 3 models: EC-Earth3, MIROC6, MRI-ESM2-0 (r1i1p1f1)
@@ -152,4 +152,4 @@ Ensemble spread (p10/p90) is computed across three CMIP6 models using one realiz
 
 ---
 
-*Part of the [LesselGeospatial](https://lesselgeospatial.com) portfolio — geospatial tools built with too much caffeine and just enough hubris.*
+*Part of the [LesselGeospatial](https://lesselgeospatial.com) portfolio - geospatial tools built with too much caffeine and just enough hubris.*
