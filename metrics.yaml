@@ -1,0 +1,122 @@
+# Remnant Biome - Metric Definitions
+# ====================================
+# Single source of truth for all crop and pest climate metrics.
+# Adding a new metric = adding a new block here. No pipeline code changes needed.
+#
+# Metric types:
+#   chill_hours     - hours below threshold (daily proxy via min/max method)
+#   degree_days     - accumulated heat above base temp
+#   threshold_days  - count of days crossing a temperature threshold
+#
+# Season labels:
+#   annual  - Jan 1 to Dec 31, labeled by calendar year
+#   winter  - Nov 1 to Feb 28, labeled by the January year
+#             (e.g. Nov 2041 - Feb 2042 = season year 2042)
+#
+# All thresholds stored in Celsius.
+# Fahrenheit equivalents noted in comments for reference.
+# Units stored in Zarr, displayed in UI per frontend config.
+
+crops:
+
+  almonds_chill_hours:
+    label: "Almond Chill Hours"
+    type: chill_hours
+    threshold_c: 7.2          # 45F
+    months: [11, 12, 1, 2]
+    season_label: winter
+    viability_min: 400        # hrs/season - below this dormancy fails
+    viability_marginal: 500   # hrs/season - approaching threshold
+    output_units: hours
+    category: crop
+
+  wine_grapes_chill_hours:
+    label: "Wine Grape Chill Hours"
+    type: chill_hours
+    threshold_c: 7.2          # 45F
+    months: [11, 12, 1, 2]
+    season_label: winter
+    viability_min: 150        # hrs/season - lower minimum than almonds
+    viability_marginal: 200
+    output_units: hours
+    category: crop
+
+  wine_grapes_gdd:
+    label: "Wine Grape Growing Degree Days"
+    type: degree_days
+    base_c: 10.0              # 50F - standard Winkler base temp
+    months: [4, 5, 6, 7, 8, 9, 10]
+    season_label: annual
+    viability_min: 1000       # GDD - below this grapes don't ripen
+    viability_marginal: 1200  # GDD - approaching lower threshold
+    viability_max: 2900       # GDD - above this too hot for premium wine
+    output_units: gdd
+    category: crop
+
+  navel_orange_frost_days:
+    label: "Navel Orange Frost Risk Days"
+    type: threshold_days
+    variable: tasmin
+    threshold_c: -2.2         # 28F - damaging frost for citrus
+    operator: below
+    months: all
+    season_label: annual
+    viability_max: 0          # any frost days = risk
+    viability_marginal: 2     # 1-2 days = marginal
+    output_units: days
+    category: crop
+
+  avocado_hard_freeze_days:
+    label: "Avocado Hard Freeze Days"
+    type: threshold_days
+    variable: tasmin
+    threshold_c: -3.3         # 26F - lethal for avocado
+    operator: below
+    months: all
+    season_label: annual
+    viability_max: 0          # any hard freeze days = risk
+    viability_marginal: 1
+    output_units: days
+    category: crop
+
+pests:
+
+  navel_orangeworm_dd:
+    label: "Navel Orangeworm Degree Days"
+    type: degree_days
+    base_c: 12.8              # 55F
+    months: [3, 4, 5, 6, 7, 8, 9, 10]
+    season_label: annual
+    viability_min: 800        # DD - below this population stays low
+    viability_marginal: 600   # DD - approaching threshold
+    output_units: gdd
+    category: pest
+    pressure_direction: higher_is_worse   # more DD = more pest pressure
+
+  vine_mealybug_survival:
+    label: "Vine Mealybug Overwinter Survival Days"
+    type: threshold_days
+    variable: tasmin
+    threshold_c: -10.0        # 14F - kill threshold
+    operator: below
+    months: [11, 12, 1, 2]
+    season_label: winter
+    viability_max: 0          # zero cold days = full overwinter survival = bad
+    viability_marginal: 2
+    output_units: days
+    category: pest
+    pressure_direction: lower_is_worse    # fewer kill days = more pest survival
+
+  spotted_wing_drosophila_mortality:
+    label: "Spotted Wing Drosophila Mortality Days"
+    type: threshold_days
+    variable: tasmin
+    threshold_c: -5.0         # 23F - mortality threshold
+    operator: below
+    months: all
+    season_label: annual
+    viability_max: 0          # zero mortality days = pest thrives year-round
+    viability_marginal: 5
+    output_units: days
+    category: pest
+    pressure_direction: lower_is_worse    # fewer cold days = wider range
