@@ -75,8 +75,8 @@ Cloudflare Pages           serves PNGs + metadata JSON to MapLibre
 ### Setup
 
 ```bash
-git clone https://github.com/lesselgeospatial/remnant-biome.git
-cd remnant-biome
+git clone https://github.com/jerrod-lessel/remnant_biome.git
+cd remnant_biome
 python -m venv .venv
 source .venv/bin/activate
 pip install boto3 botocore xarray netcdf4 zarr pyyaml numpy dask
