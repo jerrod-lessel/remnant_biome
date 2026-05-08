@@ -16,19 +16,29 @@
 # All thresholds stored in Celsius.
 # Fahrenheit equivalents noted in comments for reference.
 # Units stored in Zarr, displayed in UI per frontend config.
+#
+# Sources:
+#   Almonds chill hours: UC ANR / Wilbur-Ellis (200-300hrs minimum; 400hrs for Nonpareil)
+#   Wine grape GDD: Winkler & Amerine (1974), UC Davis - base 10C, Apr-Oct
+#   Navel orange frost: California Citrus Mutual / Farm Progress (28F threshold)
+#   Avocado freeze: California Avocado Growers (30F damage threshold for mature trees)
+#   Navel orangeworm DD: UC IPM Guidelines (base 55F / 12.8C, upper 94F / 34.4C)
+#   Vine mealybug: Gutierrez et al. (2008) J. Applied Ecology (dev. range 11-35C)
+#   Spotted wing drosophila: Asplen et al. / Dalton et al. (-5C mortality threshold)
 
 crops:
 
   almonds_chill_hours:
     label: "Almond Chill Hours"
     type: chill_hours
-    threshold_c: 7.2          # 45F
+    threshold_c: 7.2          # 45F - standard chill hours definition
     months: [11, 12, 1, 2]
     season_label: winter
-    viability_min: 400        # hrs/season - below this dormancy fails
+    viability_min: 400        # hrs/season - Nonpareil variety minimum
     viability_marginal: 500   # hrs/season - approaching threshold
     output_units: hours
     category: crop
+    source: "UC ANR / AgNote (2024) - Nonpareil chill requirement 400-600hrs"
 
   wine_grapes_chill_hours:
     label: "Wine Grape Chill Hours"
@@ -36,87 +46,94 @@ crops:
     threshold_c: 7.2          # 45F
     months: [11, 12, 1, 2]
     season_label: winter
-    viability_min: 150        # hrs/season - lower minimum than almonds
+    viability_min: 150        # hrs/season
     viability_marginal: 200
     output_units: hours
     category: crop
+    source: "Luedeling et al. (2009) PLOS ONE"
 
   wine_grapes_gdd:
     label: "Wine Grape Growing Degree Days"
     type: degree_days
-    base_c: 10.0              # 50F - standard Winkler base temp
+    base_c: 10.0              # 50F - Winkler base temp
     months: [4, 5, 6, 7, 8, 9, 10]
     season_label: annual
-    viability_min: 1000       # GDD - below this grapes don't ripen
-    viability_marginal: 1200  # GDD - approaching lower threshold
-    viability_max: 2900       # GDD - above this too hot for premium wine
+    viability_min: 1000       # GDD - below this grapes don't ripen (below Winkler I)
+    viability_marginal: 1200
+    viability_max: 2900       # GDD - above this too hot for premium wine (above Winkler V)
     output_units: gdd
     category: crop
+    source: "Winkler & Amerine (1974) General Viticulture, UC Davis"
 
   navel_orange_frost_days:
     label: "Navel Orange Frost Risk Days"
     type: threshold_days
     variable: tasmin
-    threshold_c: -2.2         # 28F - damaging frost for citrus
+    threshold_c: -2.2         # 28F - damage threshold per California Citrus Mutual
     operator: below
     months: all
     season_label: annual
-    viability_max: 0          # any frost days = risk
-    viability_marginal: 2     # 1-2 days = marginal
+    viability_max: 0
+    viability_marginal: 2
     output_units: days
     category: crop
+    source: "California Citrus Mutual / Farm Progress (2013, 2023)"
 
   avocado_hard_freeze_days:
     label: "Avocado Hard Freeze Days"
     type: threshold_days
     variable: tasmin
-    threshold_c: -3.3         # 26F - lethal for avocado
+    threshold_c: -1.1         # 30F - damage threshold for mature trees per CA Avocado Growers
     operator: below
     months: all
     season_label: annual
-    viability_max: 0          # any hard freeze days = risk
+    viability_max: 0
     viability_marginal: 1
     output_units: days
     category: crop
+    source: "California Avocado Growers - Effects of Freezes on Avocado Trees"
 
 pests:
 
   navel_orangeworm_dd:
     label: "Navel Orangeworm Degree Days"
     type: degree_days
-    base_c: 12.8              # 55F
+    base_c: 12.8              # 55F - UC IPM lower threshold
     months: [3, 4, 5, 6, 7, 8, 9, 10]
     season_label: annual
     viability_min: 800        # DD - below this population stays low
-    viability_marginal: 600   # DD - approaching threshold
+    viability_marginal: 600
     output_units: gdd
     category: pest
-    pressure_direction: higher_is_worse   # more DD = more pest pressure
+    pressure_direction: higher_is_worse
+    source: "UC IPM Pest Management Guidelines - Navel Orangeworm (base 55F/12.8C, upper 94F/34.4C)"
 
-  vine_mealybug_survival:
-    label: "Vine Mealybug Overwinter Survival Days"
+  vine_mealybug_development_days:
+    label: "Vine Mealybug Winter Development Days"
     type: threshold_days
     variable: tasmin
-    threshold_c: -10.0        # 14F - kill threshold
-    operator: below
+    threshold_c: 11.0         # lower development threshold per Gutierrez et al. (2008)
+    operator: above           # days where Tmin > 11C = development possible
     months: [11, 12, 1, 2]
     season_label: winter
-    viability_max: 0          # zero cold days = full overwinter survival = bad
-    viability_marginal: 2
+    viability_max: 0          # zero warm winter days = no overwinter development
+    viability_marginal: 10
     output_units: days
     category: pest
-    pressure_direction: lower_is_worse    # fewer kill days = more pest survival
+    pressure_direction: higher_is_worse
+    source: "Gutierrez et al. (2008) J. Applied Ecology - dev. range 11-35C"
 
   spotted_wing_drosophila_mortality:
     label: "Spotted Wing Drosophila Mortality Days"
     type: threshold_days
     variable: tasmin
-    threshold_c: -5.0         # 23F - mortality threshold
+    threshold_c: -5.0         # mortality threshold - Asplen et al. / Dalton et al.
     operator: below
     months: all
     season_label: annual
-    viability_max: 0          # zero mortality days = pest thrives year-round
+    viability_max: 0
     viability_marginal: 5
     output_units: days
     category: pest
-    pressure_direction: lower_is_worse    # fewer cold days = wider range
+    pressure_direction: lower_is_worse
+    source: "Asplen et al. (2015) J. Pest Science; note: duration matters, single-day proxy"
