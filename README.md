@@ -16,15 +16,16 @@ It's designed for people who don't already know what a chill hour is. By the end
 
 ## Crops and pests modeled
 
-| Subject | Metric | Viability threshold |
-|---|---|---|
-| Almonds | Chill hours (Nov-Feb) | 400 hrs/season |
-| Wine grapes | Chill hours + GDD | 150 hrs / 1000-2900 GDD |
-| Navel oranges | Frost risk days (Tmin < -2.2°C) | 0 days |
-| Avocados | Hard freeze days (Tmin < -3.3°C) | 0 days |
-| Navel orangeworm | Degree day accumulation (base 12.8°C) | < 800 DD |
-| Vine mealybug | Overwinter survival days (Tmin < -10°C) | > 2 kill days |
-| Spotted wing drosophila | Mortality days (Tmin < -5°C) | > 5 days |
+| Subject | Metric | Threshold | Source |
+|---|---|---|---|
+| Almonds | Chill hours (Nov–Feb) | 400 hrs/season minimum | UC ANR / AgNote — Nonpareil variety |
+| Wine grapes | Chill hours (Nov–Feb) | 150 hrs/season minimum | Luedeling et al. (2009) |
+| Wine grapes | Growing degree days (Apr–Oct, base 10°C) | 1000–2900 GDD viable range | Winkler & Amerine (1974) |
+| Navel oranges | Frost risk days (Tmin < -2.2°C / 28°F) | 0 days | California Citrus Mutual |
+| Avocados | Hard freeze days (Tmin < -1.1°C / 30°F) | 0 days | California Avocado Growers |
+| Navel orangeworm | Degree day accumulation (base 12.8°C / 55°F, Mar–Oct) | < 800 DD = low pressure | UC IPM Guidelines |
+| Vine mealybug | Winter development days (Tmin > 11°C, Nov–Feb) | 0 days = no overwinter development | Gutierrez et al. (2008) |
+| Spotted wing drosophila | Mortality days (Tmin < -5°C / 23°F) | > 5 days = range limited | Asplen et al. (2015) |
 
 ---
 
