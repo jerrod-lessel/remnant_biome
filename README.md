@@ -133,7 +133,7 @@ Ensemble spread (p10/p90) is computed across three CMIP6 models using one realiz
 ## Status
 
 - [x] Data pipeline - download, compute, zarr output
-- [ ] Ensemble aggregation (median, p10, p90)
+- [x] Ensemble aggregation (median, p10, p90)
 - [ ] PNG tiling
 - [ ] MapLibre frontend
 - [ ] Cloudflare Pages deployment
