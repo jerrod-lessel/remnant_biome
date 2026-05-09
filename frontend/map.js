@@ -134,14 +134,12 @@ function updateMapLayer() {
 }
 
 function boundsToCoords(bounds) {
-  // [west, south, east, north] → MapLibre image coordinates
-  // [[nw], [ne], [se], [sw]]
   const [west, south, east, north] = bounds;
   return [
-    [west, north],
-    [east, north],
-    [east, south],
     [west, south],
+    [east, south],
+    [east, north],
+    [west, north],
   ];
 }
 
