@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Remnant Biome</title>
+  <meta name="description" content="Watch California's agricultural and pest climate envelopes shift from 1980 to 2100. A free climate literacy tool powered by LOCA2-Hybrid CMIP6 data." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+  <!-- MapLibre GL JS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
+
+  <!-- Chart.js for timeline chart -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ── MAP ── -->
+  <div id="map"></div>
+
+  <!-- ── TOP LEFT: ZOOM + HOME + SELECTOR ── -->
+  <div id="top-left-wrap">
+    <!-- Zoom controls -->
+    <div id="zoom-controls">
+      <button id="zoom-in"  title="Zoom in"   aria-label="Zoom in">+</button>
+      <button id="zoom-out" title="Zoom out"  aria-label="Zoom out">−</button>
+      <button id="home-btn" title="Reset view" aria-label="Reset view">&#x2302;</button>
+    </div>
+
+    <!-- Selector panel -->
+    <div id="selector-panel">
+
+      <!-- Crops -->
+      <div class="selector-group">
+        <div class="selector-label">CROPS</div>
+        <div class="pill-row">
+          <button class="pill active" data-metric="almonds_chill_hours">Almonds</button>
+          <button class="pill" data-metric="wine_grapes_chill_hours">Wine Grapes: Chill</button>
+          <button class="pill" data-metric="wine_grapes_gdd">Wine Grapes: GDD</button>
+          <button class="pill" data-metric="navel_orange_frost_days">Navel Orange</button>
+          <button class="pill" data-metric="avocado_hard_freeze_days">Avocado</button>
+        </div>
+      </div>
+
+      <!-- Divider -->
+      <div class="selector-divider"></div>
+
+      <!-- Pests -->
+      <div class="selector-group">
+        <div class="selector-label">PESTS</div>
+        <div class="pill-row">
+          <button class="pill" data-metric="navel_orangeworm_dd">Orangeworm</button>
+          <button class="pill" data-metric="vine_mealybug_development_days">Vine Mealybug</button>
+          <button class="pill" data-metric="spotted_wing_drosophila_mortality">SWD</button>
+        </div>
+      </div>
+
+      <!-- Warning badge — shown when deficit detected -->
+      <div id="deficit-badge" class="hidden">
+        <span id="deficit-text">⚠ chill deficit detected</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── TOP RIGHT: SCENARIO + YEAR ── -->
+  <div id="scenario-year-panel">
+
+    <!-- Scenario grid 2x2 -->
+    <div id="scenario-grid">
+      <button class="scenario-btn" data-scenario="historical">
+        <span class="scenario-label">Historical</span>
+        <span class="scenario-code">1980–2014</span>
+      </button>
+      <button class="scenario-btn active" data-scenario="ssp245">
+        <span class="scenario-label">Current Policy</span>
+        <span class="scenario-code">SSP2-4.5</span>
+      </button>
+      <button class="scenario-btn" data-scenario="ssp370">
+        <span class="scenario-label">High Emissions</span>
+        <span class="scenario-code">SSP3-7.0</span>
+      </button>
+      <button class="scenario-btn" data-scenario="ssp585">
+        <span class="scenario-label">Worst Case</span>
+        <span class="scenario-code">SSP5-8.5</span>
+      </button>
+    </div>
+
+    <!-- Year scrubber -->
+    <div id="year-scrubber">
+      <div id="year-display">
+        <span id="year-label">2045</span>
+      </div>
+      <div id="scrubber-row">
+        <button id="play-btn" title="Animate through years" aria-label="Play">&#9654;</button>
+        <input
+          type="range"
+          id="year-slider"
+          min="1980"
+          max="2100"
+          value="2045"
+          step="1"
+        />
+      </div>
+      <div id="scrubber-labels">
+        <span>1980</span>
+        <span>2015</span>
+        <span>2060</span>
+        <span>2100</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── BOTTOM CENTER: TIMELINE PANEL (appears on click) ── -->
+  <div id="timeline-panel" class="hidden">
+    <div id="timeline-header">
+      <div id="timeline-location"></div>
+      <div id="timeline-meta"></div>
+      <button id="timeline-close" aria-label="Close timeline">&#x2715;</button>
+    </div>
+    <div id="timeline-chart-wrap">
+      <canvas id="timeline-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── CLICK HINT ── -->
+  <div id="click-hint">Click anywhere in California to explore climate futures</div>
+
+  <!-- ── BOTTOM LEFT: TITLE CARD ── -->
+  <div id="title-card">
+    <div id="title-card-main">
+      <img id="title-logo" src="favicon.svg" alt="Remnant Biome logo"
+           onerror="this.style.display='none'" />
+      <div id="title-text">
+        <div id="title-name">Remnant Biome</div>
+        <div id="title-tagline">climate envelope explorer</div>
+      </div>
+      <button id="about-toggle" title="About this tool" aria-label="Toggle about">?</button>
+    </div>
+    <div id="about-panel" class="hidden">
+      <p>
+        Watch California's agricultural and pest climate envelopes shift from
+        1980 to 2100 across three emissions scenarios. Click anywhere on the
+        map to see the full timeline at that location.
+      </p>
+      <p>
+        Powered by LOCA2-Hybrid CA — statistically downscaled CMIP6 data at
+        3km resolution, used by California's 5th Climate Assessment. Three
+        models: EC-Earth3, MIROC6, MRI-ESM2-0. Ensemble median displayed;
+        uncertainty band shown in timeline chart.
+      </p>
+      <p>
+        Built by Jerrod Lessel, Senior GIS Analyst at Caltrans.
+        <a href="https://lesselgeospatial.com" target="_blank" rel="noopener">lesselgeospatial.com</a>
+      </p>
+    </div>
+  </div>
+
+  <!-- ── LEGEND ── -->
+  <div id="legend">
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#4ade80;"></div>
+      <span>Viable</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f59e3a;"></div>
+      <span>Marginal</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch" style="background:#f87171;"></div>
+      <span>Deficit / Risk</span>
+    </div>
+  </div>
+
+</div>
+<script src="map.js"></script>
+</body>
+</html>
