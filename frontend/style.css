@@ -554,7 +554,7 @@ html, body {
 
 #legend {
   position: fixed;
-  bottom: 28px;
+  bottom: 52px;
   right: 14px;
   z-index: 900;
   background: var(--card-bg);
