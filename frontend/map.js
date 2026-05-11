@@ -105,7 +105,7 @@ function updateMapLayer() {
   const layerId  = "climate-raster-layer";
 
   // CA bounding box in the data
-  const bounds = [-128.422, 29.578, -110.984, 45.016];
+  const bounds = [-128.4375, 29.28, -110.9688, 44.78];
 
   if (map.getLayer(layerId)) {
     // Update existing source
