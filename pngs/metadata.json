@@ -1,0 +1,125 @@
+{
+  "year_ranges": {
+    "historical": {
+      "start": 1980,
+      "end": 2014
+    },
+    "future": {
+      "start": 2015,
+      "end": 2100
+    },
+    "all": {
+      "start": 1980,
+      "end": 2100
+    }
+  },
+  "bounds_4326": {
+    "west": -128.4375,
+    "east": -110.9688,
+    "south": 29.5625,
+    "north": 45.0313
+  },
+  "scenarios": {
+    "historical": {
+      "label": "Historical",
+      "ssp_code": null,
+      "color": "#94a3b8"
+    },
+    "ssp245": {
+      "label": "Current Policy",
+      "ssp_code": "SSP2-4.5",
+      "color": "#4ade80"
+    },
+    "ssp370": {
+      "label": "High Emissions",
+      "ssp_code": "SSP3-7.0",
+      "color": "#f59e3a"
+    },
+    "ssp585": {
+      "label": "Worst Case",
+      "ssp_code": "SSP5-8.5",
+      "color": "#f87171"
+    }
+  },
+  "colors": {
+    "viable": {
+      "hex": "#4ade80",
+      "label": "Viable"
+    },
+    "marginal": {
+      "hex": "#f59e3a",
+      "label": "Marginal"
+    },
+    "deficit": {
+      "hex": "#f87171",
+      "label": "Deficit / Risk"
+    }
+  },
+  "metrics": {
+    "almonds_chill_hours": {
+      "label": "Almond Chill Hours",
+      "category": "crop",
+      "units": "hours",
+      "viability_line": 400,
+      "chart_label": "Chill Hours (hrs)",
+      "direction": "higher_is_better"
+    },
+    "wine_grapes_chill_hours": {
+      "label": "Wine Grape Chill Hours",
+      "category": "crop",
+      "units": "hours",
+      "viability_line": 150,
+      "chart_label": "Chill Hours (hrs)",
+      "direction": "higher_is_better"
+    },
+    "wine_grapes_gdd": {
+      "label": "Wine Grape Growing Degree Days",
+      "category": "crop",
+      "units": "GDD",
+      "viability_line": 1000,
+      "viability_line_high": 2900,
+      "chart_label": "Growing Degree Days",
+      "direction": "middle_is_better"
+    },
+    "navel_orange_frost_days": {
+      "label": "Navel Orange Frost Risk Days",
+      "category": "crop",
+      "units": "days",
+      "viability_line": 2,
+      "chart_label": "Frost Days (days)",
+      "direction": "lower_is_better"
+    },
+    "avocado_hard_freeze_days": {
+      "label": "Avocado Hard Freeze Days",
+      "category": "crop",
+      "units": "days",
+      "viability_line": 1,
+      "chart_label": "Hard Freeze Days (days)",
+      "direction": "lower_is_better"
+    },
+    "navel_orangeworm_dd": {
+      "label": "Navel Orangeworm Degree Days",
+      "category": "pest",
+      "units": "GDD",
+      "viability_line": 800,
+      "chart_label": "Degree Days",
+      "direction": "lower_is_better"
+    },
+    "vine_mealybug_development_days": {
+      "label": "Vine Mealybug Winter Development Days",
+      "category": "pest",
+      "units": "days",
+      "viability_line": 20,
+      "chart_label": "Development Days (days)",
+      "direction": "lower_is_better"
+    },
+    "spotted_wing_drosophila_mortality": {
+      "label": "SWD Mortality Days",
+      "category": "pest",
+      "units": "days",
+      "viability_line": 5,
+      "chart_label": "Mortality Days (days)",
+      "direction": "higher_is_better"
+    }
+  }
+}
