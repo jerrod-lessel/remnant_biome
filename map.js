@@ -246,12 +246,12 @@ const tl = lngLatToMercator(west,  north);
 // Triangle 1: bl, br, tr — Triangle 2: bl, tr, tl
 const quadVertices = new Float32Array([
   //  mercX    mercY    u     v
-  bl[0], bl[1],  0.0,  1.0,  // bottom-left  (u=0, v=1 — texture bottom-left)
-  br[0], br[1],  1.0,  1.0,  // bottom-right
-  tr[0], tr[1],  1.0,  0.0,  // top-right    (v=0 — texture top)
-  bl[0], bl[1],  0.0,  1.0,  // bottom-left
-  tr[0], tr[1],  1.0,  0.0,  // top-right
-  tl[0], tl[1],  0.0,  0.0,  // top-left
+  bl[0], bl[1],  0.0,  0.0,  // bottom-left  (v=0 — canvas top maps to geo south)
+  br[0], br[1],  1.0,  0.0,  // bottom-right
+  tr[0], tr[1],  1.0,  1.0,  // top-right    (v=1 — canvas bottom maps to geo north)
+  bl[0], bl[1],  0.0,  0.0,  // bottom-left
+  tr[0], tr[1],  1.0,  1.0,  // top-right
+  tl[0], tl[1],  0.0,  1.0,  // top-left
 ]);
 
 const revealLayer = {
