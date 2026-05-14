@@ -151,16 +151,39 @@ async function addCaliforniaMask() {
 // Returns the canvas element itself (not a data URL) so the WebGL layer
 // can upload it directly as a texture with proper alpha.
 
+function latToMercatorY(lat) {
+  return (1 - Math.log(
+    Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)
+  ) / Math.PI) / 2;
+}
+
 function geoToCanvas(lng, lat) {
-  const [west, south, east, north] = IMG_BOUNDS;
-  const x = ((lng - west)  / (east  - west))  * CANVAS_SIZE;
-  const y = ((north - lat) / (north - south)) * CANVAS_SIZE;
+  const [west, , east, ] = IMG_BOUNDS;
+  const [, south, , north] = IMG_BOUNDS;
+
+  // X: longitude is linear
+  const x = ((lng - west) / (east - west)) * CANVAS_SIZE;
+
+  // Y: must use Mercator projection to match how the quad is mapped
+  const mercY      = latToMercatorY(lat);
+  const mercYNorth = latToMercatorY(north);
+  const mercYSouth = latToMercatorY(south);
+  const y = ((mercY - mercYNorth) / (mercYSouth - mercYNorth)) * CANVAS_SIZE;
+
   return { x, y };
 }
 
-function milesToCanvasPixels(miles) {
-  const [, south, , north] = IMG_BOUNDS;
-  return (miles / ((north - south) * 69.0)) * CANVAS_SIZE;
+function milesToCanvasPixels(miles, lat) {
+  // Convert miles to canvas pixels using Mercator-aware vertical scale at lat
+  // 1 degree latitude = 69 miles; Mercator stretches by 1/cos(lat)
+  const mercYNorth = latToMercatorY(IMG_BOUNDS[3]);
+  const mercYSouth = latToMercatorY(IMG_BOUNDS[1]);
+  const mercSpan   = mercYSouth - mercYNorth; // in 0-1 Mercator units
+  // 1 Mercator unit = 360 degrees longitude = ~40075 km at equator
+  // At a given lat, 1 Mercator unit vertically = 180/π * ... simplify:
+  // pixels per mile = CANVAS_SIZE / (mercSpan * 360 * 69 / 2)
+  const milesPerMercUnit = (360 * 69) / 2; // ~12420 miles per full Mercator height
+  return (miles / (mercSpan * milesPerMercUnit)) * CANVAS_SIZE;
 }
 
 // Shared offscreen canvas — reused across frames for performance
