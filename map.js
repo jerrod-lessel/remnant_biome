@@ -181,7 +181,9 @@ function milesToCanvasPixels(miles) {
 async function compositeReveal(pngUrl, lng, lat) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = "anonymous";
+    // No crossOrigin needed — PNGs are same-origin on Cloudflare Pages
+    // Setting crossOrigin="anonymous" on a same-origin request can cause
+    // the browser to taint the canvas and block toDataURL()
 
     img.onload = () => {
       // Fresh canvas every call — truly transparent background guaranteed
@@ -286,7 +288,7 @@ async function updateMapLayer() {
       );
     }
   } catch (err) {
-    console.warn("Reveal composite failed:", err);
+    console.error("Reveal composite failed:", err);
   }
 }
 
