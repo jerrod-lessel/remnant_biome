@@ -202,7 +202,8 @@ async function compositeReveal(pngUrl, lng, lat) {
       resolve(revealCanvas);
     };
 
-    img.onerror = (e) => reject(new Error(`PNG load failed: ${pngUrl}`));
+    img.onerror = (e) => { console.error(`PNG load failed: ${pngUrl}`, e); reject(new Error(`PNG load failed: ${pngUrl}`)); };
+    console.log(`Compositing PNG: ${pngUrl} at canvas (${Math.round(0)},${Math.round(0)})`);
     img.src = pngUrl;
   });
 }
@@ -254,8 +255,9 @@ const quadVertices = new Float32Array([
 ]);
 
 const revealLayer = {
-  id:   "reveal-layer",
-  type: "custom",
+  id:             "reveal-layer",
+  type:           "custom",
+  renderingMode:  "2d",
 
   // ── onAdd: runs once when layer is added to the map ──────────
   onAdd(map, gl) {
@@ -266,9 +268,9 @@ const revealLayer = {
       attribute vec2 a_uv;
       varying vec2 v_uv;
       void main() {
-        // MapLibre's u_matrix expects positions in the range [0, EXTENT]
-        // where EXTENT = 8192. Mercator coords are 0–1, so multiply.
-        gl_Position = u_matrix * vec4(a_pos * 8192.0, 0.0, 1.0);
+          // u_matrix from MapLibre's custom layer maps mercator [0,1] coords
+        // directly to clip space — no need to multiply by tile extent
+        gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
         v_uv = a_uv;
       }
     `;
@@ -385,9 +387,11 @@ async function updateMapLayer() {
 
   const pngUrl = getPngUrl(activeMetric, scenario, activeYear);
 
+  console.log(`updateMapLayer: pngUrl=${pngUrl} clickedPoint=${JSON.stringify(clickedPoint)}`);
   try {
     await compositeReveal(pngUrl, clickedPoint.lng, clickedPoint.lat);
     revealReady = true;
+    console.log(`revealReady set true, triggering repaint`);
     map.triggerRepaint();
   } catch (err) {
     console.error("Reveal composite failed:", err);
