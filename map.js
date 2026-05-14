@@ -14,6 +14,23 @@ const PLAY_INTERVAL_MS = 325;
 // Tuned bounds — shifted south to correct display offset
 const IMG_BOUNDS = [-128.4375, 29.18, -110.9688, 44.68];
 
+// Outer bbox for donut mask — well beyond CA + PNG spillover
+const DONUT_BBOX = [-140, 22, -100, 52];
+
+// Reveal radius in miles
+const REVEAL_RADIUS_MILES = 15;
+
+// Fringe rings: outerMult is fraction of full radius for outer edge,
+// opacity is how dark the ring is. Ordered outermost → innermost.
+// Inner edge of entire fringe zone = REVEAL_FRINGE_INNER_MULT * radius.
+const REVEAL_FRINGE_INNER_MULT = 0.80;
+const REVEAL_FRINGE_STEPS = [
+  { outerMult: 1.00, opacity: 0.85 },
+  { outerMult: 0.95, opacity: 0.65 },
+  { outerMult: 0.90, opacity: 0.40 },
+  { outerMult: 0.85, opacity: 0.20 },
+];
+
 const BASEMAP_TILES = {
   "carto-light":    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
   "carto-dark":     "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -34,6 +51,7 @@ let activeMarker   = null;
 let timelineChart  = null;
 let clickedPoint   = null;
 let activeBasemap  = "carto-light";
+let revealActive   = false;
 
 // ── MAP INIT ──────────────────────────────────────────────────
 
@@ -80,7 +98,6 @@ async function loadMetadata() {
 
 async function addCaliforniaMask() {
   try {
-    // Query Esri FeatureServer for California boundary
     const query = `${CA_BOUNDARY_URL}/query?where=NAME='California'&outFields=NAME&returnGeometry=true&f=geojson`;
     const resp  = await fetch(query);
     const fc    = await resp.json();
@@ -92,12 +109,10 @@ async function addCaliforniaMask() {
 
     const caGeom = fc.features[0].geometry;
 
-    // World ring (outer boundary, counter-clockwise)
     const worldRing = [
       [-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]
     ];
 
-    // Extract all rings from CA geometry to use as holes
     let caRings = [];
     if (caGeom.type === "Polygon") {
       caRings = caGeom.coordinates;
@@ -139,6 +154,98 @@ async function addCaliforniaMask() {
   } catch (e) {
     console.warn("CA mask failed:", e);
   }
+}
+
+// ── REVEAL MASK SETUP ─────────────────────────────────────────
+
+function setupRevealLayers() {
+  // Empty GeoJSON to start — layers exist but show nothing
+  const empty = { type: "FeatureCollection", features: [] };
+
+  // 1. Main donut — dark fill with full-radius hole
+  map.addSource("reveal-donut", { type: "geojson", data: empty });
+  map.addLayer({
+    id: "reveal-donut-layer",
+    type: "fill",
+    source: "reveal-donut",
+    paint: {
+      "fill-color": "#0c1f2c",
+      "fill-opacity": 1.0,
+    },
+  });
+
+  // 2. Fringe rings — 4 annuli fading inward
+  REVEAL_FRINGE_STEPS.forEach((step, i) => {
+    const id = `reveal-fringe-${i}`;
+    map.addSource(id, { type: "geojson", data: empty });
+    map.addLayer({
+      id: `${id}-layer`,
+      type: "fill",
+      source: id,
+      paint: {
+        "fill-color": "#0c1f2c",
+        "fill-opacity": step.opacity,
+      },
+    });
+  });
+}
+
+// ── REVEAL MASK UPDATE ────────────────────────────────────────
+
+function updateRevealMask(lng, lat) {
+  const radiusKm = REVEAL_RADIUS_MILES * 1.60934;
+
+  // Full circle at 100% radius — used as the donut hole
+  const fullCircle = turfCircle([lng, lat], radiusKm, { steps: 64, units: "kilometers" });
+
+  // Donut: DONUT_BBOX rectangle with full circle punched out as a hole
+  const [west, south, east, north] = DONUT_BBOX;
+  const bboxRing = [
+    [west, south], [east, south], [east, north], [west, north], [west, south]
+  ];
+  const donutGeojson = {
+    type: "Feature",
+    geometry: {
+      type: "Polygon",
+      coordinates: [bboxRing, fullCircle.geometry.coordinates[0]],
+    },
+  };
+  map.getSource("reveal-donut").setData(donutGeojson);
+
+  // Fringe annuli — each is outerCircle with innerCircle as hole
+  const innerRadiusKm = radiusKm * REVEAL_FRINGE_INNER_MULT;
+
+  REVEAL_FRINGE_STEPS.forEach((step, i) => {
+    const outerKm = radiusKm * step.outerMult;
+    // For the outermost ring, inner edge is REVEAL_FRINGE_INNER_MULT
+    // For each subsequent ring, inner edge is the previous ring's outer edge
+    const innerKm = i === 0
+      ? innerRadiusKm
+      : radiusKm * REVEAL_FRINGE_STEPS[i - 1].outerMult;
+
+    const outerCircle = turfCircle([lng, lat], outerKm, { steps: 64, units: "kilometers" });
+    const innerCircle = turfCircle([lng, lat], innerKm, { steps: 64, units: "kilometers" });
+
+    const annulusGeojson = {
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          outerCircle.geometry.coordinates[0],
+          innerCircle.geometry.coordinates[0],
+        ],
+      },
+    };
+    map.getSource(`reveal-fringe-${i}`).setData(annulusGeojson);
+  });
+}
+
+function clearRevealMask() {
+  const empty = { type: "FeatureCollection", features: [] };
+  map.getSource("reveal-donut").setData(empty);
+  REVEAL_FRINGE_STEPS.forEach((_, i) => {
+    map.getSource(`reveal-fringe-${i}`).setData(empty);
+  });
 }
 
 // ── PNG LAYER ─────────────────────────────────────────────────
@@ -185,6 +292,10 @@ function updateMapLayer() {
         id: layerId,
         type: "raster",
         source: sourceId,
+        layout: {
+          // Hidden until first click
+          visibility: "none",
+        },
         paint: {
           "raster-opacity": 0.85,
           "raster-resampling": "nearest",
@@ -195,6 +306,12 @@ function updateMapLayer() {
   }
 }
 
+function showRasterLayer() {
+  if (map.getLayer("climate-raster-layer")) {
+    map.setLayoutProperty("climate-raster-layer", "visibility", "visible");
+  }
+}
+
 // ── MAP READY ─────────────────────────────────────────────────
 
 map.on("load", async () => {
@@ -202,6 +319,7 @@ map.on("load", async () => {
   if (!ok) return;
   await addCaliforniaMask();
   updateMapLayer();
+  setupRevealLayers();
   updateYearDisplay();
   checkDeficitBadge();
 });
@@ -332,6 +450,22 @@ map.on("click", async e => {
   if (lat < CA_BOUNDS.minLat || lat > CA_BOUNDS.maxLat ||
       lng < CA_BOUNDS.minLng || lng > CA_BOUNDS.maxLng) return;
 
+  // First click — reveal the raster layer
+  if (!revealActive) {
+    showRasterLayer();
+    revealActive = true;
+  }
+
+  // Update the reveal mask to the new click point
+  updateRevealMask(lng, lat);
+
+  // Subtle zoom nudge — ease toward click point, cap at zoom 9
+  map.easeTo({
+    center: [lng, lat],
+    zoom: Math.min(map.getZoom() + 1.5, 9),
+    duration: 600,
+  });
+
   placeMarker(e.lngLat);
   clickedPoint = { lat, lng };
   document.getElementById("click-hint").classList.add("hidden");
@@ -448,6 +582,7 @@ document.addEventListener("keydown", e => {
   } else if (e.key === "Escape") {
     document.getElementById("timeline-panel").classList.add("hidden");
     if (activeMarker) activeMarker.remove();
-    activeMarker = null; clickedPoint = null;
+    activeMarker = null;
+    clickedPoint = null;
   }
 });
