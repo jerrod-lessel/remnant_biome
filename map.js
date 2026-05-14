@@ -191,25 +191,30 @@ async function compositeReveal(pngUrl, lng, lat) {
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
-      // Step 1: clear and draw the full PNG
+      // Step 1: fully clear canvas to transparent (not black)
       ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-      ctx.globalCompositeOperation = "source-over";
-      ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Step 2: build radial gradient — opaque at center, transparent at edge
+      // Step 2: draw the radial gradient mask FIRST onto the blank canvas
+      // This defines the alpha shape — opaque circle, transparent outside
       const { x, y } = geoToCanvas(lng, lat);
       const outerR   = milesToCanvasPixels(REVEAL_RADIUS_MILES);
       const innerR   = outerR * (1 - REVEAL_FEATHER); // solid zone ends here
 
       const grad = ctx.createRadialGradient(x, y, innerR, x, y, outerR);
-      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque → pixels kept
-      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent → pixels erased
+      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque center
+      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent edge
 
-      // Step 3: destination-in keeps existing pixels only where gradient is opaque
-      ctx.globalCompositeOperation = "destination-in";
+      ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
+      // Step 3: draw the PNG on top using source-in
+      // "source-in" keeps only the NEW pixels (PNG) where the EXISTING canvas
+      // already has alpha — so the PNG is clipped to the gradient shape
+      ctx.globalCompositeOperation = "source-in";
+      ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+      // Reset composite mode
       ctx.globalCompositeOperation = "source-over";
 
       resolve(offscreen.toDataURL("image/png"));
