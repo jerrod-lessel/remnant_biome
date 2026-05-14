@@ -196,7 +196,7 @@ function updateRevealMask(lng, lat) {
   const radiusKm = REVEAL_RADIUS_MILES * 1.60934;
 
   // Full circle at 100% radius — used as the donut hole
-  const fullCircle = turfCircle([lng, lat], radiusKm, { steps: 64, units: "kilometers" });
+  const fullCircle = turf.circle([lng, lat], radiusKm, { steps: 64, units: "kilometers" });
 
   // Donut: DONUT_BBOX rectangle with full circle punched out as a hole
   const [west, south, east, north] = DONUT_BBOX;
@@ -223,8 +223,8 @@ function updateRevealMask(lng, lat) {
       ? innerRadiusKm
       : radiusKm * REVEAL_FRINGE_STEPS[i - 1].outerMult;
 
-    const outerCircle = turfCircle([lng, lat], outerKm, { steps: 64, units: "kilometers" });
-    const innerCircle = turfCircle([lng, lat], innerKm, { steps: 64, units: "kilometers" });
+    const outerCircle = turf.circle([lng, lat], outerKm, { steps: 64, units: "kilometers" });
+    const innerCircle = turf.circle([lng, lat], innerKm, { steps: 64, units: "kilometers" });
 
     const annulusGeojson = {
       type: "Feature",
