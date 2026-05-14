@@ -14,22 +14,12 @@ const PLAY_INTERVAL_MS = 325;
 // Tuned bounds — shifted south to correct display offset
 const IMG_BOUNDS = [-128.4375, 29.18, -110.9688, 44.68];
 
-// Outer bbox for donut mask — well beyond CA + PNG spillover
-const DONUT_BBOX = [-140, 22, -100, 52];
-
-// Reveal radius in miles
+// Reveal circle — radius in miles, feather = fraction of radius that fades
 const REVEAL_RADIUS_MILES = 15;
+const REVEAL_FEATHER       = 0.20; // outer 20% of circle fades to transparent
 
-// Fringe rings: outerMult is fraction of full radius for outer edge,
-// opacity is how dark the ring is. Ordered outermost → innermost.
-// Inner edge of entire fringe zone = REVEAL_FRINGE_INNER_MULT * radius.
-const REVEAL_FRINGE_INNER_MULT = 0.80;
-const REVEAL_FRINGE_STEPS = [
-  { outerMult: 1.00, opacity: 0.85 },
-  { outerMult: 0.95, opacity: 0.65 },
-  { outerMult: 0.90, opacity: 0.40 },
-  { outerMult: 0.85, opacity: 0.20 },
-];
+// Fixed zoom level on click (no accumulation)
+const REVEAL_ZOOM = 8;
 
 const BASEMAP_TILES = {
   "carto-light":    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
@@ -51,7 +41,6 @@ let activeMarker   = null;
 let timelineChart  = null;
 let clickedPoint   = null;
 let activeBasemap  = "carto-light";
-let revealActive   = false;
 
 // ── MAP INIT ──────────────────────────────────────────────────
 
@@ -156,95 +145,78 @@ async function addCaliforniaMask() {
   }
 }
 
-// ── REVEAL MASK SETUP ─────────────────────────────────────────
+// ── CANVAS COMPOSITING ────────────────────────────────────────
+//
+// How it works:
+//   1. Load the full-CA PNG as an Image object
+//   2. Draw it onto an offscreen canvas at full size
+//   3. Draw a radial gradient (opaque center → transparent edge) over it
+//      using "destination-in" composite mode — this keeps only the pixels
+//      where the gradient has opacity, erasing everything outside the circle
+//   4. Feed the canvas back to MapLibre as an image source data URL
+//   5. MapLibre renders it geo-anchored to IMG_BOUNDS — pans/zooms perfectly
+//
+// The canvas is 1024×1024. The click point is converted from geographic
+// coords to pixel coords using the same linear mapping as IMG_BOUNDS.
 
-function setupRevealLayers() {
-  // Empty GeoJSON to start — layers exist but show nothing
-  const empty = { type: "FeatureCollection", features: [] };
+const CANVAS_SIZE = 1024;
 
-  // 1. Main donut — dark fill with full-radius hole
-  map.addSource("reveal-donut", { type: "geojson", data: empty });
-  map.addLayer({
-    id: "reveal-donut-layer",
-    type: "fill",
-    source: "reveal-donut",
-    paint: {
-      "fill-color": "#0c1f2c",
-      "fill-opacity": 1.0,
-    },
-  });
+const offscreen = document.createElement("canvas");
+offscreen.width  = CANVAS_SIZE;
+offscreen.height = CANVAS_SIZE;
+const ctx = offscreen.getContext("2d");
 
-  // 2. Fringe rings — 4 annuli fading inward
-  REVEAL_FRINGE_STEPS.forEach((step, i) => {
-    const id = `reveal-fringe-${i}`;
-    map.addSource(id, { type: "geojson", data: empty });
-    map.addLayer({
-      id: `${id}-layer`,
-      type: "fill",
-      source: id,
-      paint: {
-        "fill-color": "#0c1f2c",
-        "fill-opacity": step.opacity,
-      },
-    });
-  });
+// Convert a geographic coordinate to canvas pixel space
+function geoToCanvas(lng, lat) {
+  const [west, south, east, north] = IMG_BOUNDS;
+  const x = ((lng - west)  / (east  - west))  * CANVAS_SIZE;
+  const y = ((north - lat) / (north - south)) * CANVAS_SIZE; // y flipped (north = 0)
+  return { x, y };
 }
 
-// ── REVEAL MASK UPDATE ────────────────────────────────────────
+// Convert miles to canvas pixels using the north-south span of IMG_BOUNDS
+// 1 degree latitude ≈ 69 miles
+function milesToCanvasPixels(miles) {
+  const [, south, , north] = IMG_BOUNDS;
+  const degSpan   = north - south;
+  const milesSpan = degSpan * 69;
+  return (miles / milesSpan) * CANVAS_SIZE;
+}
 
-function updateRevealMask(lng, lat) {
-  const radiusKm = REVEAL_RADIUS_MILES * 1.60934;
+// Composite the PNG with a radial reveal mask centered on (lng, lat)
+// Returns a data URL ready to hand to MapLibre
+async function compositeReveal(pngUrl, lng, lat) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
 
-  // Full circle at 100% radius — used as the donut hole
-  const fullCircle = turf.circle([lng, lat], radiusKm, { steps: 64, units: "kilometers" });
+    img.onload = () => {
+      // Step 1: clear and draw the full PNG
+      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-  // Donut: DONUT_BBOX rectangle with full circle punched out as a hole
-  const [west, south, east, north] = DONUT_BBOX;
-  const bboxRing = [
-    [west, south], [east, south], [east, north], [west, north], [west, south]
-  ];
-  const donutGeojson = {
-    type: "Feature",
-    geometry: {
-      type: "Polygon",
-      coordinates: [bboxRing, fullCircle.geometry.coordinates[0]],
-    },
-  };
-  map.getSource("reveal-donut").setData(donutGeojson);
+      // Step 2: build radial gradient — opaque at center, transparent at edge
+      const { x, y } = geoToCanvas(lng, lat);
+      const outerR   = milesToCanvasPixels(REVEAL_RADIUS_MILES);
+      const innerR   = outerR * (1 - REVEAL_FEATHER); // solid zone ends here
 
-  // Fringe annuli — each is outerCircle with innerCircle as hole
-  const innerRadiusKm = radiusKm * REVEAL_FRINGE_INNER_MULT;
+      const grad = ctx.createRadialGradient(x, y, innerR, x, y, outerR);
+      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque → pixels kept
+      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent → pixels erased
 
-  REVEAL_FRINGE_STEPS.forEach((step, i) => {
-    const outerKm = radiusKm * step.outerMult;
-    // For the outermost ring, inner edge is REVEAL_FRINGE_INNER_MULT
-    // For each subsequent ring, inner edge is the previous ring's outer edge
-    const innerKm = i === 0
-      ? innerRadiusKm
-      : radiusKm * REVEAL_FRINGE_STEPS[i - 1].outerMult;
+      // Step 3: destination-in keeps existing pixels only where gradient is opaque
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-    const outerCircle = turf.circle([lng, lat], outerKm, { steps: 64, units: "kilometers" });
-    const innerCircle = turf.circle([lng, lat], innerKm, { steps: 64, units: "kilometers" });
+      ctx.globalCompositeOperation = "source-over";
 
-    const annulusGeojson = {
-      type: "Feature",
-      geometry: {
-        type: "Polygon",
-        coordinates: [
-          outerCircle.geometry.coordinates[0],
-          innerCircle.geometry.coordinates[0],
-        ],
-      },
+      resolve(offscreen.toDataURL("image/png"));
     };
-    map.getSource(`reveal-fringe-${i}`).setData(annulusGeojson);
-  });
-}
 
-function clearRevealMask() {
-  const empty = { type: "FeatureCollection", features: [] };
-  map.getSource("reveal-donut").setData(empty);
-  REVEAL_FRINGE_STEPS.forEach((_, i) => {
-    map.getSource(`reveal-fringe-${i}`).setData(empty);
+    img.onerror = () => reject(new Error(`Failed to load PNG: ${pngUrl}`));
+    img.src = pngUrl;
   });
 }
 
@@ -270,45 +242,61 @@ function boundsToCoords(bounds) {
   ];
 }
 
-function updateMapLayer() {
+// Update the raster layer — composites reveal if click point exists,
+// hides the layer if not
+async function updateMapLayer() {
   const scenario = getScenarioForYear(activeYear, activeScenario);
   if (!scenario) return;
 
-  const url      = getPngUrl(activeMetric, scenario, activeYear);
   const sourceId = "climate-raster";
   const layerId  = "climate-raster-layer";
 
-  if (map.getLayer(layerId)) {
-    const source = map.getSource(sourceId);
-    if (source) source.updateImage({ url, coordinates: boundsToCoords(IMG_BOUNDS) });
-  } else {
-    map.addSource(sourceId, {
-      type: "image",
-      url,
-      coordinates: boundsToCoords(IMG_BOUNDS),
-    });
-    map.addLayer(
-      {
-        id: layerId,
-        type: "raster",
-        source: sourceId,
-        layout: {
-          // Hidden until first click
-          visibility: "none",
+  // No click point — keep layer hidden
+  if (!clickedPoint) {
+    if (map.getLayer(layerId)) {
+      map.setLayoutProperty(layerId, "visibility", "none");
+    }
+    return;
+  }
+
+  const pngUrl = getPngUrl(activeMetric, scenario, activeYear);
+
+  try {
+    const dataUrl = await compositeReveal(pngUrl, clickedPoint.lng, clickedPoint.lat);
+
+    if (map.getLayer(layerId)) {
+      map.getSource(sourceId).updateImage({
+        url: dataUrl,
+        coordinates: boundsToCoords(IMG_BOUNDS),
+      });
+      map.setLayoutProperty(layerId, "visibility", "visible");
+    } else {
+      map.addSource(sourceId, {
+        type: "image",
+        url: dataUrl,
+        coordinates: boundsToCoords(IMG_BOUNDS),
+      });
+      map.addLayer(
+        {
+          id: layerId,
+          type: "raster",
+          source: sourceId,
+          paint: {
+            "raster-opacity": 1.0,
+            "raster-resampling": "nearest",
+          },
         },
-        paint: {
-          "raster-opacity": 0.85,
-          "raster-resampling": "nearest",
-        },
-      },
-      map.getLayer("ca-mask-layer") ? "ca-mask-layer" : undefined
-    );
+        map.getLayer("ca-mask-layer") ? "ca-mask-layer" : undefined
+      );
+    }
+  } catch (err) {
+    console.warn("Reveal composite failed:", err);
   }
 }
 
-function showRasterLayer() {
+function hideRasterLayer() {
   if (map.getLayer("climate-raster-layer")) {
-    map.setLayoutProperty("climate-raster-layer", "visibility", "visible");
+    map.setLayoutProperty("climate-raster-layer", "visibility", "none");
   }
 }
 
@@ -318,8 +306,7 @@ map.on("load", async () => {
   const ok = await loadMetadata();
   if (!ok) return;
   await addCaliforniaMask();
-  updateMapLayer();
-  setupRevealLayers();
+  // No raster on load — nothing shows until first click
   updateYearDisplay();
   checkDeficitBadge();
 });
@@ -441,6 +428,18 @@ function placeMarker(lngLat) {
   activeMarker = new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(map);
 }
 
+// ── DISMISS ───────────────────────────────────────────────────
+
+function dismiss() {
+  document.getElementById("timeline-panel").classList.add("hidden");
+  document.getElementById("click-hint").classList.remove("hidden");
+  if (activeMarker) activeMarker.remove();
+  activeMarker  = null;
+  clickedPoint  = null;
+  hideRasterLayer();
+  map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
+}
+
 // ── MAP CLICK ─────────────────────────────────────────────────
 
 map.on("click", async e => {
@@ -450,24 +449,17 @@ map.on("click", async e => {
   if (lat < CA_BOUNDS.minLat || lat > CA_BOUNDS.maxLat ||
       lng < CA_BOUNDS.minLng || lng > CA_BOUNDS.maxLng) return;
 
-  // First click — reveal the raster layer
-  if (!revealActive) {
-    showRasterLayer();
-    revealActive = true;
-  }
+  clickedPoint = { lat, lng };
 
-  // Update the reveal mask to the new click point
-  updateRevealMask(lng, lat);
-
-  // Subtle zoom nudge — ease toward click point, cap at zoom 9
   map.easeTo({
     center: [lng, lat],
-    zoom: Math.min(map.getZoom() + 1.5, 9),
+    zoom: REVEAL_ZOOM,
     duration: 600,
   });
 
+  await updateMapLayer();
+
   placeMarker(e.lngLat);
-  clickedPoint = { lat, lng };
   document.getElementById("click-hint").classList.add("hidden");
   document.getElementById("timeline-panel").classList.remove("hidden");
   await updateTimeline(lat, lng);
@@ -475,12 +467,7 @@ map.on("click", async e => {
 
 // ── TIMELINE ──────────────────────────────────────────────────
 
-document.getElementById("timeline-close").addEventListener("click", () => {
-  document.getElementById("timeline-panel").classList.add("hidden");
-  if (activeMarker) activeMarker.remove();
-  activeMarker = null;
-  clickedPoint = null;
-});
+document.getElementById("timeline-close").addEventListener("click", dismiss);
 
 async function updateTimeline(lat, lng) {
   if (!metadata) return;
@@ -580,9 +567,6 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     isPlaying ? stopPlay() : startPlay();
   } else if (e.key === "Escape") {
-    document.getElementById("timeline-panel").classList.add("hidden");
-    if (activeMarker) activeMarker.remove();
-    activeMarker = null;
-    clickedPoint = null;
+    dismiss();
   }
 });
