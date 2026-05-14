@@ -211,6 +211,11 @@ async function compositeReveal(pngUrl, lng, lat) {
       ctx.globalCompositeOperation = "source-in";
       ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
+      // Debug: sample center pixel to verify PNG colors came through
+      const { x: cx, y: cy } = geoToCanvas(lng, lat);
+      const px = ctx.getImageData(Math.floor(cx), Math.floor(cy), 1, 1).data;
+      console.log(`Center pixel RGBA: r=${px[0]} g=${px[1]} b=${px[2]} a=${px[3]}`);
+
       resolve(canvas.toDataURL("image/png"));
     };
 
