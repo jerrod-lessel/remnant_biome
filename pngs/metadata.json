@@ -1,4 +1,5 @@
 {
+  "generated": "/Users/jerrod/Documents/lesselgeospatial/remnant-biome",
   "year_ranges": {
     "historical": {
       "start": 1980,
@@ -13,31 +14,29 @@
       "end": 2100
     }
   },
-  "bounds_4326": {
-    "west": -128.4375,
-    "east": -110.9688,
-    "south": 29.5625,
-    "north": 45.0313
-  },
   "scenarios": {
     "historical": {
       "label": "Historical",
       "ssp_code": null,
+      "description": "Observed climate 1980\u20132014",
       "color": "#94a3b8"
     },
     "ssp245": {
       "label": "Current Policy",
       "ssp_code": "SSP2-4.5",
+      "description": "Moderate emissions reduction",
       "color": "#4ade80"
     },
     "ssp370": {
       "label": "High Emissions",
       "ssp_code": "SSP3-7.0",
+      "description": "Limited climate action",
       "color": "#f59e3a"
     },
     "ssp585": {
       "label": "Worst Case",
       "ssp_code": "SSP5-8.5",
+      "description": "Fossil-fuel intensive development",
       "color": "#f87171"
     }
   },
@@ -60,66 +59,130 @@
       "label": "Almond Chill Hours",
       "category": "crop",
       "units": "hours",
+      "direction": "higher_is_better",
+      "thresholds": {
+        "green_min": 500,
+        "amber_min": 400,
+        "red_max": 400
+      },
       "viability_line": 400,
       "chart_label": "Chill Hours (hrs)",
-      "direction": "higher_is_better"
+      "description": "Hours below 7.2\u00b0C (45\u00b0F), Nov\u2013Feb. Almonds need ~400hrs of cold for dormancy.",
+      "source": "UC ANR / Nonpareil variety requirement"
     },
     "wine_grapes_chill_hours": {
       "label": "Wine Grape Chill Hours",
       "category": "crop",
       "units": "hours",
+      "direction": "higher_is_better",
+      "thresholds": {
+        "green_min": 200,
+        "amber_min": 150,
+        "red_max": 150
+      },
       "viability_line": 150,
       "chart_label": "Chill Hours (hrs)",
-      "direction": "higher_is_better"
+      "description": "Hours below 7.2\u00b0C (45\u00b0F), Nov\u2013Feb. Grapes need cold to break dormancy and bloom evenly.",
+      "source": "Luedeling et al. (2009)"
     },
     "wine_grapes_gdd": {
       "label": "Wine Grape Growing Degree Days",
       "category": "crop",
       "units": "GDD",
-      "viability_line": 1000,
+      "direction": "middle_is_better",
+      "thresholds": {
+        "green_min": 1200,
+        "green_max": 2500,
+        "amber_low_min": 1000,
+        "amber_low_max": 1200,
+        "amber_high_min": 2500,
+        "amber_high_max": 2900,
+        "red_low_max": 1000,
+        "red_high_min": 2900
+      },
+      "viability_line_low": 1000,
       "viability_line_high": 2900,
       "chart_label": "Growing Degree Days",
-      "direction": "middle_is_better"
+      "description": "Heat accumulation Apr\u2013Oct above 10\u00b0C. Too little = grapes won't ripen. Too much = low-quality fruit.",
+      "source": "Winkler & Amerine (1974) \u2014 Winkler Index"
     },
     "navel_orange_frost_days": {
       "label": "Navel Orange Frost Risk Days",
       "category": "crop",
       "units": "days",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "green_max": 0,
+        "amber_max": 2,
+        "red_min": 3
+      },
       "viability_line": 2,
       "chart_label": "Frost Days (days)",
-      "direction": "lower_is_better"
+      "description": "Days where Tmin < -2.2\u00b0C (28\u00b0F). Even brief frosts damage citrus fruit.",
+      "source": "California Citrus Mutual"
     },
     "avocado_hard_freeze_days": {
       "label": "Avocado Hard Freeze Days",
       "category": "crop",
       "units": "days",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "green_max": 0,
+        "amber_max": 1,
+        "red_min": 2
+      },
       "viability_line": 1,
       "chart_label": "Hard Freeze Days (days)",
-      "direction": "lower_is_better"
+      "description": "Days where Tmin < -1.1\u00b0C (30\u00b0F). Hard freezes can kill avocado trees outright.",
+      "source": "California Avocado Growers"
     },
     "navel_orangeworm_dd": {
       "label": "Navel Orangeworm Degree Days",
       "category": "pest",
       "units": "GDD",
+      "direction": "lower_is_better",
+      "pressure_direction": "higher_is_worse",
+      "thresholds": {
+        "green_max": 600,
+        "amber_max": 800,
+        "red_min": 800
+      },
       "viability_line": 800,
       "chart_label": "Degree Days",
-      "direction": "lower_is_better"
+      "description": "Heat accumulation Mar\u2013Oct above 12.8\u00b0C (55\u00b0F). More degree days = more pest generations per season.",
+      "source": "UC IPM Guidelines"
     },
     "vine_mealybug_development_days": {
       "label": "Vine Mealybug Winter Development Days",
       "category": "pest",
       "units": "days",
+      "direction": "lower_is_better",
+      "pressure_direction": "higher_is_worse",
+      "thresholds": {
+        "green_max": 10,
+        "amber_max": 20,
+        "red_min": 20
+      },
       "viability_line": 20,
       "chart_label": "Development Days (days)",
-      "direction": "lower_is_better"
+      "description": "Winter days (Nov\u2013Feb) where Tmin > 11\u00b0C. Warmer winters allow year-round mealybug development.",
+      "source": "Gutierrez et al. (2008) J. Applied Ecology"
     },
     "spotted_wing_drosophila_mortality": {
-      "label": "SWD Mortality Days",
+      "label": "Spotted Wing Drosophila Mortality Days",
       "category": "pest",
       "units": "days",
+      "direction": "higher_is_better",
+      "pressure_direction": "lower_is_worse",
+      "thresholds": {
+        "green_min": 5,
+        "amber_min": 2,
+        "red_max": 2
+      },
       "viability_line": 5,
       "chart_label": "Mortality Days (days)",
-      "direction": "higher_is_better"
+      "description": "Days where Tmin < -5\u00b0C. Cold winters limit SWD range. Fewer cold days = wider infestation risk.",
+      "source": "Asplen et al. (2015) J. Pest Science"
     }
   }
 }
