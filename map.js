@@ -16,9 +16,9 @@ const IMG_BOUNDS = [-128.4375, 29.18, -110.9688, 44.68];
 
 // Reveal circle — radius in miles, feather = fraction of radius that fades
 const REVEAL_RADIUS_MILES = 15;
-const REVEAL_FEATHER       = 0.20; // outer 20% of circle fades to transparent
+const REVEAL_FEATHER       = 0.20;
 
-// Fixed zoom level on click (no accumulation)
+// Fixed zoom level on click
 const REVEAL_ZOOM = 8;
 
 // Canvas resolution for compositing
@@ -86,7 +86,7 @@ async function loadMetadata() {
   }
 }
 
-// ── CALIFORNIA MASK (Esri FeatureServer) ──────────────────────
+// ── CALIFORNIA MASK ───────────────────────────────────────────
 
 async function addCaliforniaMask() {
   try {
@@ -100,7 +100,6 @@ async function addCaliforniaMask() {
     }
 
     const caGeom = fc.features[0].geometry;
-
     const worldRing = [
       [-180, -90], [180, -90], [180, 90], [-180, 90], [-180, -90]
     ];
@@ -114,17 +113,15 @@ async function addCaliforniaMask() {
       );
     }
 
-    const maskGeojson = {
-      type: "Feature",
-      geometry: {
-        type: "Polygon",
-        coordinates: [worldRing, ...caRings],
-      },
-    };
-
     map.addSource("ca-mask", {
       type: "geojson",
-      data: maskGeojson,
+      data: {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          coordinates: [worldRing, ...caRings],
+        },
+      },
       tolerance: 0,
       buffer: 0,
     });
@@ -138,12 +135,11 @@ async function addCaliforniaMask() {
       paint: {
         "fill-color": "#000000",
         "fill-opacity": 0.45,
-        "fill-outline-color": "rgba(0,0,0,0)", // suppress graticule edge lines
+        "fill-outline-color": "rgba(0,0,0,0)",
       },
     });
 
     console.log("CA mask added from Esri FeatureServer");
-
   } catch (e) {
     console.warn("CA mask failed:", e);
   }
@@ -151,80 +147,221 @@ async function addCaliforniaMask() {
 
 // ── CANVAS COMPOSITING ────────────────────────────────────────
 //
-// How it works:
-//   1. Create a fresh blank canvas (guarantees transparent background)
-//   2. Draw a radial gradient onto it — opaque center, transparent edge
-//   3. Draw the PNG on top using "source-in" composite mode
-//      source-in: result pixels = new draw (PNG), but only where the
-//      existing canvas already has alpha — so PNG is clipped to the circle
-//   4. Export as data URL → MapLibre renders geo-anchored to IMG_BOUNDS
-//
-// Fresh canvas per call avoids any bleed from previous composites.
+// Composites the PNG with a radial reveal mask onto an offscreen canvas.
+// Returns the canvas element itself (not a data URL) so the WebGL layer
+// can upload it directly as a texture with proper alpha.
 
-// Convert a geographic coordinate to canvas pixel space
 function geoToCanvas(lng, lat) {
   const [west, south, east, north] = IMG_BOUNDS;
   const x = ((lng - west)  / (east  - west))  * CANVAS_SIZE;
-  const y = ((north - lat) / (north - south)) * CANVAS_SIZE; // y flipped
+  const y = ((north - lat) / (north - south)) * CANVAS_SIZE;
   return { x, y };
 }
 
-// Convert miles to canvas pixels using the north-south span of IMG_BOUNDS
 function milesToCanvasPixels(miles) {
   const [, south, , north] = IMG_BOUNDS;
-  const degSpan   = north - south;
-  const milesSpan = degSpan * 69.0;
-  return (miles / milesSpan) * CANVAS_SIZE;
+  return (miles / ((north - south) * 69.0)) * CANVAS_SIZE;
 }
 
-// Composite the PNG with a radial reveal mask — returns a data URL
+// Shared offscreen canvas — reused across frames for performance
+const revealCanvas  = document.createElement("canvas");
+revealCanvas.width  = CANVAS_SIZE;
+revealCanvas.height = CANVAS_SIZE;
+const revealCtx     = revealCanvas.getContext("2d");
+
+// Tracks whether the canvas has valid content to render
+let revealReady = false;
+
 async function compositeReveal(pngUrl, lng, lat) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    // No crossOrigin needed — PNGs are same-origin on Cloudflare Pages
-    // Setting crossOrigin="anonymous" on a same-origin request can cause
-    // the browser to taint the canvas and block toDataURL()
 
     img.onload = () => {
-      // Fresh canvas every call — truly transparent background guaranteed
-      const canvas  = document.createElement("canvas");
-      canvas.width  = CANVAS_SIZE;
-      canvas.height = CANVAS_SIZE;
-      const ctx     = canvas.getContext("2d");
+      revealCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Step 1: draw radial gradient mask onto blank canvas
-      // Opaque at center, transparent at edge — defines the alpha shape
+      // Step 1: draw full PNG onto canvas
+      revealCtx.globalCompositeOperation = "source-over";
+      revealCtx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+      // Step 2: build radial gradient — opaque center, transparent edge
       const { x, y } = geoToCanvas(lng, lat);
       const outerR    = milesToCanvasPixels(REVEAL_RADIUS_MILES);
       const innerR    = outerR * (1 - REVEAL_FEATHER);
 
-      const grad = ctx.createRadialGradient(x, y, innerR, x, y, outerR);
-      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque — PNG will show here
-      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent — PNG erased here
+      const grad = revealCtx.createRadialGradient(x, y, innerR, x, y, outerR);
+      grad.addColorStop(0, "rgba(0,0,0,1)");
+      grad.addColorStop(1, "rgba(0,0,0,0)");
 
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      // Step 3: destination-in — keeps PNG pixels only where gradient is opaque
+      // This correctly erases PNG pixels outside the circle to true transparency
+      revealCtx.globalCompositeOperation = "destination-in";
+      revealCtx.fillStyle = grad;
+      revealCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Step 2: draw PNG clipped to the gradient shape
-      // source-in: new pixels only appear where existing canvas has alpha
-      ctx.globalCompositeOperation = "source-in";
-      ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-      // Debug: sample center pixel to verify PNG colors came through
-      const { x: cx, y: cy } = geoToCanvas(lng, lat);
-      const px = ctx.getImageData(Math.floor(cx), Math.floor(cy), 1, 1).data;
-      console.log(`Center pixel RGBA: r=${px[0]} g=${px[1]} b=${px[2]} a=${px[3]}`);
-
-      resolve(canvas.toDataURL("image/png"));
+      revealCtx.globalCompositeOperation = "source-over";
+      resolve(revealCanvas);
     };
 
-    img.onerror = () => reject(new Error(`Failed to load PNG: ${pngUrl}`));
+    img.onerror = (e) => reject(new Error(`PNG load failed: ${pngUrl}`));
     img.src = pngUrl;
   });
 }
 
-// ── PNG LAYER ─────────────────────────────────────────────────
+// ── WEBGL CUSTOM LAYER ────────────────────────────────────────
+//
+// A MapLibre custom layer renders directly into the map's WebGL context.
+// This gives us full control over blending — so transparent canvas pixels
+// stay transparent instead of becoming black (the MapLibre image source bug).
+//
+// How it works:
+//   - onAdd: compile shaders, create GPU buffers for a rectangle quad
+//             mapped to IMG_BOUNDS in Mercator coordinates
+//   - render: upload canvas as texture each frame, draw quad with alpha blend
+//   - map.triggerRepaint(): tells MapLibre to call render() again
+//
+// The vertex shader transforms Mercator coords to clip space using the
+// map's projection matrix (u_matrix), which MapLibre provides automatically.
+// This means the quad pans, zooms, and rotates perfectly with the map.
+
+// Convert lng/lat to Mercator (0–1 range that MapLibre uses internally)
+function lngLatToMercator(lng, lat) {
+  const x = (lng + 180) / 360;
+  const y = (1 - Math.log(
+    Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)
+  ) / Math.PI) / 2;
+  return [x, y];
+}
+
+// Build the four corners of IMG_BOUNDS as Mercator coords
+// Order: bottom-left, bottom-right, top-right, top-left (for two triangles)
+const [west, south, east, north] = IMG_BOUNDS;
+const bl = lngLatToMercator(west,  south);
+const br = lngLatToMercator(east,  south);
+const tr = lngLatToMercator(east,  north);
+const tl = lngLatToMercator(west,  north);
+
+// Two triangles forming a rectangle, with UV coords (texture coordinates)
+// Positions (Mercator x,y) and UVs (0–1 texture space) interleaved
+// Triangle 1: bl, br, tr — Triangle 2: bl, tr, tl
+const quadVertices = new Float32Array([
+  //  mercX    mercY    u     v
+  bl[0], bl[1],  0.0,  1.0,  // bottom-left  (u=0, v=1 — texture bottom-left)
+  br[0], br[1],  1.0,  1.0,  // bottom-right
+  tr[0], tr[1],  1.0,  0.0,  // top-right    (v=0 — texture top)
+  bl[0], bl[1],  0.0,  1.0,  // bottom-left
+  tr[0], tr[1],  1.0,  0.0,  // top-right
+  tl[0], tl[1],  0.0,  0.0,  // top-left
+]);
+
+const revealLayer = {
+  id:   "reveal-layer",
+  type: "custom",
+
+  // ── onAdd: runs once when layer is added to the map ──────────
+  onAdd(map, gl) {
+    // Vertex shader — transforms Mercator position to screen clip space
+    const vsSource = `
+      uniform mat4 u_matrix;
+      attribute vec2 a_pos;
+      attribute vec2 a_uv;
+      varying vec2 v_uv;
+      void main() {
+        // MapLibre's u_matrix expects positions in the range [0, EXTENT]
+        // where EXTENT = 8192. Mercator coords are 0–1, so multiply.
+        gl_Position = u_matrix * vec4(a_pos * 8192.0, 0.0, 1.0);
+        v_uv = a_uv;
+      }
+    `;
+
+    // Fragment shader — samples the canvas texture with alpha blending
+    const fsSource = `
+      precision mediump float;
+      uniform sampler2D u_texture;
+      varying vec2 v_uv;
+      void main() {
+        gl_FragColor = texture2D(u_texture, v_uv);
+      }
+    `;
+
+    // Compile shaders
+    const vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, vsSource);
+    gl.compileShader(vs);
+    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+      console.error("Vertex shader error:", gl.getShaderInfoLog(vs));
+    }
+
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, fsSource);
+    gl.compileShader(fs);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+      console.error("Fragment shader error:", gl.getShaderInfoLog(fs));
+    }
+
+    this.program = gl.createProgram();
+    gl.attachShader(this.program, vs);
+    gl.attachShader(this.program, fs);
+    gl.linkProgram(this.program);
+    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
+      console.error("Shader link error:", gl.getProgramInfoLog(this.program));
+    }
+
+    // Get attribute and uniform locations
+    this.a_pos     = gl.getAttribLocation(this.program,  "a_pos");
+    this.a_uv      = gl.getAttribLocation(this.program,  "a_uv");
+    this.u_matrix  = gl.getUniformLocation(this.program, "u_matrix");
+    this.u_texture = gl.getUniformLocation(this.program, "u_texture");
+
+    // Upload quad geometry to GPU
+    this.buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
+
+    // Create texture slot (will be filled each frame from revealCanvas)
+    this.texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  },
+
+  // ── render: called by MapLibre every frame ────────────────────
+  render(gl, matrix) {
+    if (!revealReady) return; // nothing to draw yet
+
+    gl.useProgram(this.program);
+
+    // Upload canvas as texture — does this every frame so updates appear
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.texImage2D(
+      gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
+      gl.UNSIGNED_BYTE, revealCanvas
+    );
+
+    // Bind vertex buffer and set up attribute pointers
+    // Each vertex: [mercX(4), mercY(4), u(4), v(4)] = 16 bytes stride
+    const stride = 4 * 4; // 4 floats × 4 bytes
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+    gl.enableVertexAttribArray(this.a_pos);
+    gl.vertexAttribPointer(this.a_pos, 2, gl.FLOAT, false, stride, 0);
+    gl.enableVertexAttribArray(this.a_uv);
+    gl.vertexAttribPointer(this.a_uv, 2, gl.FLOAT, false, stride, 2 * 4);
+
+    // Set uniforms
+    gl.uniformMatrix4fv(this.u_matrix, false, matrix);
+    gl.uniform1i(this.u_texture, 0);
+
+    // Enable alpha blending — this is what makes transparency work
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied alpha
+
+    // Draw the two triangles (6 vertices)
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  },
+};
+
+// ── PNG + REVEAL UPDATE ───────────────────────────────────────
 
 function getPngUrl(metric, scenario, year) {
   return `${PNG_BASE}/pngs/${metric}/${scenario}_${year}.png`;
@@ -236,70 +373,24 @@ function getScenarioForYear(year, selectedScenario) {
   return selectedScenario;
 }
 
-function boundsToCoords(bounds) {
-  const [west, south, east, north] = bounds;
-  return [
-    [west, south],
-    [east, south],
-    [east, north],
-    [west, north],
-  ];
-}
-
-// Update the raster layer — composites reveal if click point exists
 async function updateMapLayer() {
   const scenario = getScenarioForYear(activeYear, activeScenario);
   if (!scenario) return;
 
-  const sourceId = "climate-raster";
-  const layerId  = "climate-raster-layer";
-
-  // No click point — keep layer hidden
   if (!clickedPoint) {
-    if (map.getLayer(layerId)) {
-      map.setLayoutProperty(layerId, "visibility", "none");
-    }
+    revealReady = false;
+    map.triggerRepaint();
     return;
   }
 
   const pngUrl = getPngUrl(activeMetric, scenario, activeYear);
 
   try {
-    const dataUrl = await compositeReveal(pngUrl, clickedPoint.lng, clickedPoint.lat);
-
-    if (map.getLayer(layerId)) {
-      map.getSource(sourceId).updateImage({
-        url: dataUrl,
-        coordinates: boundsToCoords(IMG_BOUNDS),
-      });
-      map.setLayoutProperty(layerId, "visibility", "visible");
-    } else {
-      map.addSource(sourceId, {
-        type: "image",
-        url: dataUrl,
-        coordinates: boundsToCoords(IMG_BOUNDS),
-      });
-      map.addLayer(
-        {
-          id: layerId,
-          type: "raster",
-          source: sourceId,
-          paint: {
-            "raster-opacity": 1.0,
-            "raster-resampling": "nearest",
-          },
-        },
-        map.getLayer("ca-mask-layer") ? "ca-mask-layer" : undefined
-      );
-    }
+    await compositeReveal(pngUrl, clickedPoint.lng, clickedPoint.lat);
+    revealReady = true;
+    map.triggerRepaint();
   } catch (err) {
     console.error("Reveal composite failed:", err);
-  }
-}
-
-function hideRasterLayer() {
-  if (map.getLayer("climate-raster-layer")) {
-    map.setLayoutProperty("climate-raster-layer", "visibility", "none");
   }
 }
 
@@ -309,7 +400,10 @@ map.on("load", async () => {
   const ok = await loadMetadata();
   if (!ok) return;
   await addCaliforniaMask();
-  // No raster on load — nothing shows until first click
+
+  // Add the custom WebGL layer above the CA mask
+  map.addLayer(revealLayer, "ca-mask-layer");
+
   updateYearDisplay();
   checkDeficitBadge();
 });
@@ -437,9 +531,10 @@ function dismiss() {
   document.getElementById("timeline-panel").classList.add("hidden");
   document.getElementById("click-hint").classList.remove("hidden");
   if (activeMarker) activeMarker.remove();
-  activeMarker = null;
-  clickedPoint = null;
-  hideRasterLayer();
+  activeMarker  = null;
+  clickedPoint  = null;
+  revealReady   = false;
+  map.triggerRepaint();
   map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
 }
 
