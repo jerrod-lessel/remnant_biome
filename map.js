@@ -21,6 +21,9 @@ const REVEAL_FEATHER       = 0.20; // outer 20% of circle fades to transparent
 // Fixed zoom level on click (no accumulation)
 const REVEAL_ZOOM = 8;
 
+// Canvas resolution for compositing
+const CANVAS_SIZE = 1024;
+
 const BASEMAP_TILES = {
   "carto-light":    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
   "carto-dark":     "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
@@ -135,6 +138,7 @@ async function addCaliforniaMask() {
       paint: {
         "fill-color": "#000000",
         "fill-opacity": 0.45,
+        "fill-outline-color": "rgba(0,0,0,0)", // suppress graticule edge lines
       },
     });
 
@@ -148,76 +152,64 @@ async function addCaliforniaMask() {
 // ── CANVAS COMPOSITING ────────────────────────────────────────
 //
 // How it works:
-//   1. Load the full-CA PNG as an Image object
-//   2. Draw it onto an offscreen canvas at full size
-//   3. Draw a radial gradient (opaque center → transparent edge) over it
-//      using "destination-in" composite mode — this keeps only the pixels
-//      where the gradient has opacity, erasing everything outside the circle
-//   4. Feed the canvas back to MapLibre as an image source data URL
-//   5. MapLibre renders it geo-anchored to IMG_BOUNDS — pans/zooms perfectly
+//   1. Create a fresh blank canvas (guarantees transparent background)
+//   2. Draw a radial gradient onto it — opaque center, transparent edge
+//   3. Draw the PNG on top using "source-in" composite mode
+//      source-in: result pixels = new draw (PNG), but only where the
+//      existing canvas already has alpha — so PNG is clipped to the circle
+//   4. Export as data URL → MapLibre renders geo-anchored to IMG_BOUNDS
 //
-// The canvas is 1024×1024. The click point is converted from geographic
-// coords to pixel coords using the same linear mapping as IMG_BOUNDS.
-
-const CANVAS_SIZE = 1024;
-
-const offscreen = document.createElement("canvas");
-offscreen.width  = CANVAS_SIZE;
-offscreen.height = CANVAS_SIZE;
-const ctx = offscreen.getContext("2d");
+// Fresh canvas per call avoids any bleed from previous composites.
 
 // Convert a geographic coordinate to canvas pixel space
 function geoToCanvas(lng, lat) {
   const [west, south, east, north] = IMG_BOUNDS;
   const x = ((lng - west)  / (east  - west))  * CANVAS_SIZE;
-  const y = ((north - lat) / (north - south)) * CANVAS_SIZE; // y flipped (north = 0)
+  const y = ((north - lat) / (north - south)) * CANVAS_SIZE; // y flipped
   return { x, y };
 }
 
 // Convert miles to canvas pixels using the north-south span of IMG_BOUNDS
-// 1 degree latitude ≈ 69 miles
 function milesToCanvasPixels(miles) {
   const [, south, , north] = IMG_BOUNDS;
   const degSpan   = north - south;
-  const milesSpan = degSpan * 69;
+  const milesSpan = degSpan * 69.0;
   return (miles / milesSpan) * CANVAS_SIZE;
 }
 
-// Composite the PNG with a radial reveal mask centered on (lng, lat)
-// Returns a data URL ready to hand to MapLibre
+// Composite the PNG with a radial reveal mask — returns a data URL
 async function compositeReveal(pngUrl, lng, lat) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
 
     img.onload = () => {
-      // Step 1: fully clear canvas to transparent (not black)
-      ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      // Fresh canvas every call — truly transparent background guaranteed
+      const canvas  = document.createElement("canvas");
+      canvas.width  = CANVAS_SIZE;
+      canvas.height = CANVAS_SIZE;
+      const ctx     = canvas.getContext("2d");
 
-      // Step 2: draw the radial gradient mask FIRST onto the blank canvas
-      // This defines the alpha shape — opaque circle, transparent outside
+      // Step 1: draw radial gradient mask onto blank canvas
+      // Opaque at center, transparent at edge — defines the alpha shape
       const { x, y } = geoToCanvas(lng, lat);
-      const outerR   = milesToCanvasPixels(REVEAL_RADIUS_MILES);
-      const innerR   = outerR * (1 - REVEAL_FEATHER); // solid zone ends here
+      const outerR    = milesToCanvasPixels(REVEAL_RADIUS_MILES);
+      const innerR    = outerR * (1 - REVEAL_FEATHER);
 
       const grad = ctx.createRadialGradient(x, y, innerR, x, y, outerR);
-      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque center
-      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent edge
+      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque — PNG will show here
+      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent — PNG erased here
 
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Step 3: draw the PNG on top using source-in
-      // "source-in" keeps only the NEW pixels (PNG) where the EXISTING canvas
-      // already has alpha — so the PNG is clipped to the gradient shape
+      // Step 2: draw PNG clipped to the gradient shape
+      // source-in: new pixels only appear where existing canvas has alpha
       ctx.globalCompositeOperation = "source-in";
       ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Reset composite mode
-      ctx.globalCompositeOperation = "source-over";
-
-      resolve(offscreen.toDataURL("image/png"));
+      resolve(canvas.toDataURL("image/png"));
     };
 
     img.onerror = () => reject(new Error(`Failed to load PNG: ${pngUrl}`));
@@ -247,8 +239,7 @@ function boundsToCoords(bounds) {
   ];
 }
 
-// Update the raster layer — composites reveal if click point exists,
-// hides the layer if not
+// Update the raster layer — composites reveal if click point exists
 async function updateMapLayer() {
   const scenario = getScenarioForYear(activeYear, activeScenario);
   if (!scenario) return;
@@ -439,8 +430,8 @@ function dismiss() {
   document.getElementById("timeline-panel").classList.add("hidden");
   document.getElementById("click-hint").classList.remove("hidden");
   if (activeMarker) activeMarker.remove();
-  activeMarker  = null;
-  clickedPoint  = null;
+  activeMarker = null;
+  clickedPoint = null;
   hideRasterLayer();
   map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
 }
