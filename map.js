@@ -15,7 +15,7 @@ const PLAY_INTERVAL_MS = 325;
 const IMG_BOUNDS = [-128.4375, 29.18, -110.9688, 44.68];
 
 // Reveal circle settings
-const REVEAL_RADIUS_MILES = 15;
+const REVEAL_RADIUS_MILES = 25;
 const REVEAL_ZOOM         = 8;
 
 // Outer bbox for the donut dark fill — well beyond CA + PNG spillover
