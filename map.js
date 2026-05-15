@@ -14,15 +14,23 @@ const PLAY_INTERVAL_MS = 325;
 // Tuned bounds — shifted south to correct display offset
 const IMG_BOUNDS = [-128.4375, 29.18, -110.9688, 44.68];
 
-// Reveal circle — radius in miles, feather = fraction of radius that fades
+// Reveal circle settings
 const REVEAL_RADIUS_MILES = 15;
-const REVEAL_FEATHER       = 0.20;
+const REVEAL_ZOOM         = 8;
 
-// Fixed zoom level on click
-const REVEAL_ZOOM = 8;
+// Outer bbox for the donut dark fill — well beyond CA + PNG spillover
+const DONUT_BBOX = [-140, 22, -100, 52];
 
-// Canvas resolution for compositing
-const CANVAS_SIZE = 1024;
+// Fringe rings — annuli just outside the hole, getting darker outward
+// Each ring: inner edge = previous outer edge, outer edge = outerMult * radius
+// Opacity increases outward so center is fully clear, edge blends to dark
+const FRINGE_INNER_MULT = 0.80; // solid data zone ends at 80% of radius
+const FRINGE_STEPS = [
+  { outerMult: 0.85, opacity: 0.20 }, // innermost fringe ring — barely dark
+  { outerMult: 0.90, opacity: 0.40 },
+  { outerMult: 0.95, opacity: 0.65 },
+  { outerMult: 1.00, opacity: 0.85 }, // outermost fringe ring — nearly opaque
+];
 
 const BASEMAP_TILES = {
   "carto-light":    "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
@@ -44,6 +52,7 @@ let activeMarker   = null;
 let timelineChart  = null;
 let clickedPoint   = null;
 let activeBasemap  = "carto-light";
+let revealActive   = false;
 
 // ── MAP INIT ──────────────────────────────────────────────────
 
@@ -145,222 +154,107 @@ async function addCaliforniaMask() {
   }
 }
 
-// ── CANVAS COMPOSITING ────────────────────────────────────────
+// ── DONUT REVEAL SETUP ────────────────────────────────────────
 //
-// Two coordinate systems must stay consistent:
+// Layer stack (all in map space — pan/zoom perfectly):
 //
-// 1. geoToCanvas — places the radial gradient on the canvas
-//    Canvas 2D: y=0 is TOP (north), y=CANVAS_SIZE is BOTTOM (south)
-//    So: y = (north - lat) / (north - south) * CANVAS_SIZE
+//   climate-raster-layer   ← full CA PNG, hidden until first click
+//   ca-mask-layer          ← darkens everything outside CA
+//   reveal-donut-layer     ← dark fill covering CA, hole = full circle
+//   reveal-fringe-0..3     ← annuli at circle edge, opacity 0.20→0.85
 //
-// 2. lngLatToUV — maps quad corners to texture sample points
-//    WebGL texImage2D uploads canvas rows top-to-bottom
-//    WebGL samples: v=0 is BOTTOM of texture, v=1 is TOP
-//    Canvas top (north) → uploaded as row 0 → sampled at v=1
-//    Canvas bottom (south) → uploaded as last row → sampled at v=0
-//    So: v = (lat - south) / (north - south)   ← OPPOSITE of geoToCanvas Y
-//
-// These must be opposites. That's not a hack — it's the correct
-// relationship between canvas 2D (top-origin) and WebGL UV (bottom-origin).
+// The hole in the donut exposes the climate raster underneath.
+// The fringe rings sit on top of the raster at the boundary,
+// fading from transparent (inner) to nearly opaque (outer) —
+// giving a soft spotlight edge.
 
-const [west, south, east, north] = IMG_BOUNDS;
+function setupRevealLayers() {
+  const empty = { type: "FeatureCollection", features: [] };
 
-// Canvas 2D: place gradient center — north=y0, south=y=CANVAS_SIZE
-function geoToCanvas(lng, lat) {
-  const x = ((lng  - west)  / (east  - west))  * CANVAS_SIZE;
-  const y = ((north - lat)  / (north - south)) * CANVAS_SIZE; // top-origin
-  return { x, y };
-}
+  // Main donut — dark fill everywhere except the circle hole
+  map.addSource("reveal-donut", { type: "geojson", data: empty });
+  map.addLayer({
+    id: "reveal-donut-layer",
+    type: "fill",
+    source: "reveal-donut",
+    paint: {
+      "fill-color": "#0c1f2c",
+      "fill-opacity": 1.0,
+      "fill-outline-color": "rgba(0,0,0,0)",
+    },
+  });
 
-// Miles to canvas pixels using the Y span of IMG_BOUNDS
-function milesToCanvasPixels(miles) {
-  const milesSpan = (north - south) * 69.0;
-  return (miles / milesSpan) * CANVAS_SIZE;
-}
-
-// WebGL UV: with UNPACK_FLIP_Y_WEBGL=true, canvas is flipped on upload
-// so v=0 now maps to canvas BOTTOM (south) and v=1 to canvas TOP (north)
-// After the flip: north=v=1, south=v=0 — same direction as geoToCanvas fracY inverted
-// So UV v must be: v = (lat - south) / (north - south)
-// Which with the flip applied becomes: north=v=1 ✅ south=v=0 ✅
-function lngLatToUV(lng, lat) {
-  const u = (lng   - west)  / (east  - west);
-  const v = (north - lat)   / (north - south); // v=0 at north (canvas top row 0 = v=0 without flip)
-  return [u, v];
-}
-
-// Shared offscreen canvas
-const revealCanvas  = document.createElement("canvas");
-revealCanvas.width  = CANVAS_SIZE;
-revealCanvas.height = CANVAS_SIZE;
-const revealCtx     = revealCanvas.getContext("2d");
-
-let revealReady = false;
-
-async function compositeReveal(pngUrl, lng, lat) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-
-    img.onload = () => {
-      // Clear canvas
-      revealCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-      // Step 1: draw full PNG — top of image = north, bottom = south
-      revealCtx.globalCompositeOperation = "source-over";
-      revealCtx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-      // Step 2: radial gradient centered on click point in canvas coords
-      // geoToCanvas uses top-origin (north=y0) matching drawImage orientation
-      const { x, y } = geoToCanvas(lng, lat);
-      const outerR    = milesToCanvasPixels(REVEAL_RADIUS_MILES);
-      const innerR    = outerR * (1 - REVEAL_FEATHER);
-
-      const grad = revealCtx.createRadialGradient(x, y, innerR, x, y, outerR);
-      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque center — PNG kept
-      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent edge — PNG erased
-
-      // Step 3: destination-in erases PNG pixels outside the gradient circle
-      revealCtx.globalCompositeOperation = "destination-in";
-      revealCtx.fillStyle = grad;
-      revealCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-
-      revealCtx.globalCompositeOperation = "source-over";
-      resolve(revealCanvas);
-    };
-
-    img.onerror = (e) => reject(new Error(`PNG load failed: ${pngUrl}`));
-    img.src = pngUrl;
+  // Fringe rings — innermost to outermost, opacity increases outward
+  FRINGE_STEPS.forEach((step, i) => {
+    map.addSource(`reveal-fringe-${i}`, { type: "geojson", data: empty });
+    map.addLayer({
+      id: `reveal-fringe-${i}-layer`,
+      type: "fill",
+      source: `reveal-fringe-${i}`,
+      paint: {
+        "fill-color": "#0c1f2c",
+        "fill-opacity": step.opacity,
+        "fill-outline-color": "rgba(0,0,0,0)",
+      },
+    });
   });
 }
 
-// ── WEBGL CUSTOM LAYER ────────────────────────────────────────
-//
-// Renders the composited canvas as a geo-anchored texture using MapLibre's
-// custom layer API. Vertex positions are in Mercator [0,1] space so
-// MapLibre's u_matrix maps them correctly to screen. UV coords use the
-// bottom-origin WebGL convention (v=0 south, v=1 north).
+// ── DONUT REVEAL UPDATE ───────────────────────────────────────
 
-function lngLatToMercator(lng, lat) {
-  const x = (lng + 180) / 360;
-  const y = (1 - Math.log(
-    Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)
-  ) / Math.PI) / 2;
-  return [x, y];
+function updateRevealMask(lng, lat) {
+  const radiusKm = REVEAL_RADIUS_MILES * 1.60934;
+
+  // Full circle at 100% radius — punched as hole in the donut
+  const fullCircle = turf.circle([lng, lat], radiusKm, { steps: 64, units: "kilometers" });
+
+  // Donut: large bbox with full circle as hole
+  const [west, south, east, north] = DONUT_BBOX;
+  const bboxRing = [
+    [west, south], [east, south], [east, north], [west, north], [west, south]
+  ];
+  map.getSource("reveal-donut").setData({
+    type: "Feature",
+    geometry: {
+      type: "Polygon",
+      coordinates: [bboxRing, fullCircle.geometry.coordinates[0]],
+    },
+  });
+
+  // Fringe annuli — each ring sits between its inner and outer radius
+  // innermost ring inner edge = FRINGE_INNER_MULT * radius
+  // each subsequent ring's inner edge = previous ring's outer edge
+  FRINGE_STEPS.forEach((step, i) => {
+    const outerKm = radiusKm * step.outerMult;
+    const innerKm = i === 0
+      ? radiusKm * FRINGE_INNER_MULT
+      : radiusKm * FRINGE_STEPS[i - 1].outerMult;
+
+    const outerCircle = turf.circle([lng, lat], outerKm, { steps: 64, units: "kilometers" });
+    const innerCircle = turf.circle([lng, lat], innerKm, { steps: 64, units: "kilometers" });
+
+    map.getSource(`reveal-fringe-${i}`).setData({
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          outerCircle.geometry.coordinates[0],
+          innerCircle.geometry.coordinates[0],
+        ],
+      },
+    });
+  });
 }
 
-// Quad corners — Mercator positions for geo-anchoring
-const bl = lngLatToMercator(west,  south);
-const br = lngLatToMercator(east,  south);
-const tr = lngLatToMercator(east,  north);
-const tl = lngLatToMercator(west,  north);
+function clearRevealMask() {
+  const empty = { type: "FeatureCollection", features: [] };
+  map.getSource("reveal-donut").setData(empty);
+  FRINGE_STEPS.forEach((_, i) => {
+    map.getSource(`reveal-fringe-${i}`).setData(empty);
+  });
+}
 
-// UV corners — bottom-origin WebGL convention
-const uvBL = lngLatToUV(west,  south); // [0, 0] — south=v0
-const uvBR = lngLatToUV(east,  south); // [1, 0]
-const uvTR = lngLatToUV(east,  north); // [1, 1] — north=v1
-const uvTL = lngLatToUV(west,  north); // [0, 1]
-
-const quadVertices = new Float32Array([
-  //  mercX     mercY      u         v
-  bl[0], bl[1],  uvBL[0], uvBL[1],  // SW corner
-  br[0], br[1],  uvBR[0], uvBR[1],  // SE corner
-  tr[0], tr[1],  uvTR[0], uvTR[1],  // NE corner
-  bl[0], bl[1],  uvBL[0], uvBL[1],  // SW corner
-  tr[0], tr[1],  uvTR[0], uvTR[1],  // NE corner
-  tl[0], tl[1],  uvTL[0], uvTL[1],  // NW corner
-]);
-
-const revealLayer = {
-  id:            "reveal-layer",
-  type:          "custom",
-  renderingMode: "2d",
-
-  onAdd(map, gl) {
-    const vsSource = `
-      uniform mat4 u_matrix;
-      attribute vec2 a_pos;
-      attribute vec2 a_uv;
-      varying vec2 v_uv;
-      void main() {
-        gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
-        v_uv = a_uv;
-      }
-    `;
-
-    const fsSource = `
-      precision mediump float;
-      uniform sampler2D u_texture;
-      varying vec2 v_uv;
-      void main() {
-        gl_FragColor = texture2D(u_texture, v_uv);
-      }
-    `;
-
-    const vs = gl.createShader(gl.VERTEX_SHADER);
-    gl.shaderSource(vs, vsSource);
-    gl.compileShader(vs);
-    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS))
-      console.error("VS error:", gl.getShaderInfoLog(vs));
-
-    const fs = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.shaderSource(fs, fsSource);
-    gl.compileShader(fs);
-    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS))
-      console.error("FS error:", gl.getShaderInfoLog(fs));
-
-    this.program = gl.createProgram();
-    gl.attachShader(this.program, vs);
-    gl.attachShader(this.program, fs);
-    gl.linkProgram(this.program);
-    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
-      console.error("Link error:", gl.getProgramInfoLog(this.program));
-
-    this.a_pos     = gl.getAttribLocation(this.program,  "a_pos");
-    this.a_uv      = gl.getAttribLocation(this.program,  "a_uv");
-    this.u_matrix  = gl.getUniformLocation(this.program, "u_matrix");
-    this.u_texture = gl.getUniformLocation(this.program, "u_texture");
-
-    this.buffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-    gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
-
-    this.texture = gl.createTexture();
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  },
-
-  render(gl, matrix) {
-    if (!revealReady) return;
-
-    gl.useProgram(this.program);
-
-    // Upload canvas as texture each frame
-    // UNPACK_FLIP_Y_WEBGL flips the canvas vertically on upload so that
-    // canvas y=0 (north/top) maps to WebGL v=1 (top) correctly
-    gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, revealCanvas);
-
-    const stride = 4 * 4;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
-    gl.enableVertexAttribArray(this.a_pos);
-    gl.vertexAttribPointer(this.a_pos, 2, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(this.a_uv);
-    gl.vertexAttribPointer(this.a_uv, 2, gl.FLOAT, false, stride, 2 * 4);
-
-    gl.uniformMatrix4fv(this.u_matrix, false, matrix);
-    gl.uniform1i(this.u_texture, 0);
-
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
-
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
-  },
-};
-
-// ── PNG + REVEAL UPDATE ───────────────────────────────────────
+// ── PNG LAYER ─────────────────────────────────────────────────
 
 function getPngUrl(metric, scenario, year) {
   return `${PNG_BASE}/pngs/${metric}/${scenario}_${year}.png`;
@@ -372,24 +266,52 @@ function getScenarioForYear(year, selectedScenario) {
   return selectedScenario;
 }
 
-async function updateMapLayer() {
+function boundsToCoords(bounds) {
+  const [west, south, east, north] = bounds;
+  return [[west, south], [east, south], [east, north], [west, north]];
+}
+
+function updateMapLayer() {
   const scenario = getScenarioForYear(activeYear, activeScenario);
   if (!scenario) return;
 
-  if (!clickedPoint) {
-    revealReady = false;
-    map.triggerRepaint();
-    return;
+  const url      = getPngUrl(activeMetric, scenario, activeYear);
+  const sourceId = "climate-raster";
+  const layerId  = "climate-raster-layer";
+
+  if (map.getLayer(layerId)) {
+    map.getSource(sourceId).updateImage({ url, coordinates: boundsToCoords(IMG_BOUNDS) });
+  } else {
+    map.addSource(sourceId, {
+      type: "image",
+      url,
+      coordinates: boundsToCoords(IMG_BOUNDS),
+    });
+    map.addLayer(
+      {
+        id: layerId,
+        type: "raster",
+        source: sourceId,
+        layout: { visibility: "none" },
+        paint: {
+          "raster-opacity": 0.85,
+          "raster-resampling": "nearest",
+        },
+      },
+      "ca-mask-layer"
+    );
   }
+}
 
-  const pngUrl = getPngUrl(activeMetric, scenario, activeYear);
+function showRasterLayer() {
+  if (map.getLayer("climate-raster-layer")) {
+    map.setLayoutProperty("climate-raster-layer", "visibility", "visible");
+  }
+}
 
-  try {
-    await compositeReveal(pngUrl, clickedPoint.lng, clickedPoint.lat);
-    revealReady = true;
-    map.triggerRepaint();
-  } catch (err) {
-    console.error("Reveal composite failed:", err);
+function hideRasterLayer() {
+  if (map.getLayer("climate-raster-layer")) {
+    map.setLayoutProperty("climate-raster-layer", "visibility", "none");
   }
 }
 
@@ -399,7 +321,8 @@ map.on("load", async () => {
   const ok = await loadMetadata();
   if (!ok) return;
   await addCaliforniaMask();
-  map.addLayer(revealLayer, "ca-mask-layer");
+  updateMapLayer();
+  setupRevealLayers();
   updateYearDisplay();
   checkDeficitBadge();
 });
@@ -529,8 +452,9 @@ function dismiss() {
   if (activeMarker) activeMarker.remove();
   activeMarker = null;
   clickedPoint = null;
-  revealReady  = false;
-  map.triggerRepaint();
+  revealActive = false;
+  clearRevealMask();
+  hideRasterLayer();
   map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
 }
 
@@ -543,17 +467,20 @@ map.on("click", async e => {
   if (lat < CA_BOUNDS.minLat || lat > CA_BOUNDS.maxLat ||
       lng < CA_BOUNDS.minLng || lng > CA_BOUNDS.maxLng) return;
 
-  clickedPoint = { lat, lng };
+  // First click — show the raster layer
+  if (!revealActive) {
+    showRasterLayer();
+    revealActive = true;
+  }
 
-  map.easeTo({
-    center: [lng, lat],
-    zoom: REVEAL_ZOOM,
-    duration: 600,
-  });
+  // Update donut mask to new click point
+  updateRevealMask(lng, lat);
 
-  await updateMapLayer();
+  // Ease to fixed zoom centered on click
+  map.easeTo({ center: [lng, lat], zoom: REVEAL_ZOOM, duration: 600 });
 
   placeMarker(e.lngLat);
+  clickedPoint = { lat, lng };
   document.getElementById("click-hint").classList.add("hidden");
   document.getElementById("timeline-panel").classList.remove("hidden");
   await updateTimeline(lat, lng);
