@@ -101,11 +101,16 @@
   <!-- BOTTOM CENTER: TIMELINE PANEL -->
   <div id="timeline-panel" class="hidden">
     <div id="timeline-header">
-      <div>
+      <div id="timeline-title-group">
         <div id="timeline-location"></div>
         <div id="timeline-meta"></div>
       </div>
-      <button id="timeline-close" aria-label="Close timeline">&#x2715;</button>
+      <div id="timeline-actions">
+        <button id="interpret-btn" aria-label="What does this mean?">
+          What does this mean? <span class="interpret-arrow">›</span>
+        </button>
+        <button id="timeline-close" aria-label="Close timeline">&#x2715;</button>
+      </div>
     </div>
     <div id="timeline-chart-wrap">
       <canvas id="timeline-chart"></canvas>
@@ -161,7 +166,63 @@
     </div>
   </div>
 
-</div>
+  <!-- INTERPRETATION SIDEBAR -->
+  <div id="interpret-sidebar" class="hidden">
+
+    <div id="sidebar-header">
+      <div id="sidebar-header-text">
+        <div id="sidebar-eyebrow">What does this mean?</div>
+        <div id="sidebar-metric-name"></div>
+        <div id="sidebar-location"></div>
+      </div>
+      <button id="sidebar-close" aria-label="Close sidebar">&#x2715;</button>
+    </div>
+
+    <div id="sidebar-body">
+
+      <!-- Status + current value -->
+      <div id="sidebar-status-block">
+        <div>
+          <div class="sidebar-status-badge" id="sidebar-status-badge">
+            <span id="sidebar-status-text">–</span>
+          </div>
+          <div id="sidebar-year-label">in <span id="sidebar-year-display"></span></div>
+        </div>
+        <div style="text-align:right">
+          <div id="sidebar-current-value">–</div>
+          <div id="sidebar-category" class="sidebar-category-tag tag-crop">Crop</div>
+        </div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Projected change -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Projected change</div>
+        <div class="sidebar-section-text" id="sidebar-trend">–</div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- What this measures -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">What this measures</div>
+        <div class="sidebar-section-text" id="sidebar-what">–</div>
+      </div>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Why it matters -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">Why it matters</div>
+        <div class="sidebar-section-text" id="sidebar-risk">–</div>
+      </div>
+
+    </div><!-- /sidebar-body -->
+
+  </div><!-- /interpret-sidebar -->
+
+</div><!-- /app -->
 <script src="map.js"></script>
 </body>
 </html>
