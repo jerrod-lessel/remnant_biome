@@ -22,14 +22,12 @@ const REVEAL_ZOOM         = 8;
 const DONUT_BBOX = [-140, 22, -100, 52];
 
 // Fringe rings — annuli just outside the hole, getting darker outward
-// Each ring: inner edge = previous outer edge, outer edge = outerMult * radius
-// Opacity increases outward so center is fully clear, edge blends to dark
-const FRINGE_INNER_MULT = 0.80; // solid data zone ends at 80% of radius
+const FRINGE_INNER_MULT = 0.80;
 const FRINGE_STEPS = [
-  { outerMult: 0.85, opacity: 0.20 }, // innermost fringe ring — barely dark
+  { outerMult: 0.85, opacity: 0.20 },
   { outerMult: 0.90, opacity: 0.40 },
   { outerMult: 0.95, opacity: 0.65 },
-  { outerMult: 1.00, opacity: 0.85 }, // outermost fringe ring — nearly opaque
+  { outerMult: 1.00, opacity: 0.85 },
 ];
 
 const BASEMAP_TILES = {
@@ -53,6 +51,16 @@ let timelineChart  = null;
 let clickedPoint   = null;
 let activeBasemap  = "carto-light";
 let revealActive   = false;
+
+// ── CHART DATA CACHE ──────────────────────────────────────────
+// Holds fetched chart_data.json per metric so we only fetch once each.
+// Key = metric name, value = parsed JSON object (or "loading" sentinel).
+const chartDataCache = {};
+
+// ── IMAGE PRELOAD CACHE ───────────────────────────────────────
+// Browser caches the actual image files; we just need to fire new Image()
+// to trigger the fetch. Keeping handles here prevents GC from evicting them.
+const preloadedImages = {};
 
 // ── MAP INIT ──────────────────────────────────────────────────
 
@@ -155,23 +163,10 @@ async function addCaliforniaMask() {
 }
 
 // ── DONUT REVEAL SETUP ────────────────────────────────────────
-//
-// Layer stack (all in map space — pan/zoom perfectly):
-//
-//   climate-raster-layer   ← full CA PNG, hidden until first click
-//   ca-mask-layer          ← darkens everything outside CA
-//   reveal-donut-layer     ← dark fill covering CA, hole = full circle
-//   reveal-fringe-0..3     ← annuli at circle edge, opacity 0.20→0.85
-//
-// The hole in the donut exposes the climate raster underneath.
-// The fringe rings sit on top of the raster at the boundary,
-// fading from transparent (inner) to nearly opaque (outer) —
-// giving a soft spotlight edge.
 
 function setupRevealLayers() {
   const empty = { type: "FeatureCollection", features: [] };
 
-  // Main donut — dark fill everywhere except the circle hole
   map.addSource("reveal-donut", { type: "geojson", data: empty });
   map.addLayer({
     id: "reveal-donut-layer",
@@ -184,7 +179,6 @@ function setupRevealLayers() {
     },
   });
 
-  // Fringe rings — innermost to outermost, opacity increases outward
   FRINGE_STEPS.forEach((step, i) => {
     map.addSource(`reveal-fringe-${i}`, { type: "geojson", data: empty });
     map.addLayer({
@@ -204,11 +198,8 @@ function setupRevealLayers() {
 
 function updateRevealMask(lng, lat) {
   const radiusKm = REVEAL_RADIUS_MILES * 1.60934;
-
-  // Full circle at 100% radius — punched as hole in the donut
   const fullCircle = turf.circle([lng, lat], radiusKm, { steps: 64, units: "kilometers" });
 
-  // Donut: large bbox with full circle as hole
   const [west, south, east, north] = DONUT_BBOX;
   const bboxRing = [
     [west, south], [east, south], [east, north], [west, north], [west, south]
@@ -221,9 +212,6 @@ function updateRevealMask(lng, lat) {
     },
   });
 
-  // Fringe annuli — each ring sits between its inner and outer radius
-  // innermost ring inner edge = FRINGE_INNER_MULT * radius
-  // each subsequent ring's inner edge = previous ring's outer edge
   FRINGE_STEPS.forEach((step, i) => {
     const outerKm = radiusKm * step.outerMult;
     const innerKm = i === 0
@@ -312,6 +300,28 @@ function showRasterLayer() {
 function hideRasterLayer() {
   if (map.getLayer("climate-raster-layer")) {
     map.setLayoutProperty("climate-raster-layer", "visibility", "none");
+  }
+}
+
+// ── IMAGE PRELOADING ──────────────────────────────────────────
+// During playback, fire off fetches for the next several frames
+// before they're needed. The browser caches them so updateMapLayer()
+// finds them ready. We keep Image handles in preloadedImages so the
+// GC doesn't evict them before they finish loading.
+
+function preloadFrames(fromYear, count = 6) {
+  const maxYear = activeScenario === "historical" ? 2014 : 2100;
+  for (let i = 1; i <= count; i++) {
+    const yr = fromYear + i;
+    if (yr > maxYear) break;
+    const scenario = getScenarioForYear(yr, activeScenario);
+    if (!scenario) continue;
+    const url = getPngUrl(activeMetric, scenario, yr);
+    if (!preloadedImages[url]) {
+      const img = new Image();
+      img.src = url;
+      preloadedImages[url] = img;
+    }
   }
 }
 
@@ -405,6 +415,9 @@ function startPlay() {
     document.getElementById("year-slider").value = 1980;
   }
 
+  // Kick off an initial preload batch before the first tick
+  preloadFrames(activeYear, 8);
+
   playTimer = setInterval(() => {
     activeYear++;
     const max = activeScenario === "historical" ? 2014 : 2100;
@@ -412,6 +425,8 @@ function startPlay() {
     document.getElementById("year-slider").value = activeYear;
     updateYearDisplay();
     updateMapLayer();
+    // Preload the next several frames on every tick
+    preloadFrames(activeYear, 6);
   }, PLAY_INTERVAL_MS);
 }
 
@@ -467,16 +482,12 @@ map.on("click", async e => {
   if (lat < CA_BOUNDS.minLat || lat > CA_BOUNDS.maxLat ||
       lng < CA_BOUNDS.minLng || lng > CA_BOUNDS.maxLng) return;
 
-  // First click — show the raster layer
   if (!revealActive) {
     showRasterLayer();
     revealActive = true;
   }
 
-  // Update donut mask to new click point
   updateRevealMask(lng, lat);
-
-  // Ease to fixed zoom centered on click
   map.easeTo({ center: [lng, lat], zoom: REVEAL_ZOOM, duration: 600 });
 
   placeMarker(e.lngLat);
@@ -485,6 +496,67 @@ map.on("click", async e => {
   document.getElementById("timeline-panel").classList.remove("hidden");
   await updateTimeline(lat, lng);
 });
+
+// ── CHART DATA FETCHING ───────────────────────────────────────
+// Fetches chart_data.json for the active metric, using an in-memory cache
+// so each metric is only downloaded once per session.
+
+async function fetchChartData(metric) {
+  // Already cached and loaded
+  if (chartDataCache[metric] && chartDataCache[metric] !== "loading") {
+    return chartDataCache[metric];
+  }
+
+  // Already in flight — wait for it
+  if (chartDataCache[metric] === "loading") {
+    return new Promise((resolve) => {
+      const poll = setInterval(() => {
+        if (chartDataCache[metric] !== "loading") {
+          clearInterval(poll);
+          resolve(chartDataCache[metric] || null);
+        }
+      }, 100);
+    });
+  }
+
+  // First request — fetch and cache
+  chartDataCache[metric] = "loading";
+  try {
+    const url  = `${PNG_BASE}/pngs/${metric}/chart_data.json`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    chartDataCache[metric] = data;
+    return data;
+  } catch (err) {
+    console.error(`Failed to load chart_data.json for ${metric}:`, err);
+    chartDataCache[metric] = null;
+    return null;
+  }
+}
+
+// ── NEAREST POINT LOOKUP ──────────────────────────────────────
+// Given a clicked lat/lng and the grid of sampled points, find the index
+// of the nearest sampled point. Uses squared Euclidean distance — fast
+// enough for ~3,500 points with no need for a spatial index.
+
+function findNearestPointIndex(clickLat, clickLng, lats, lons) {
+  let bestIdx  = 0;
+  let bestDist = Infinity;
+
+  for (let i = 0; i < lats.length; i++) {
+    const dlat = lats[i] - clickLat;
+    const dlon = lons[i] - clickLng;
+    const dist = dlat * dlat + dlon * dlon;
+    if (dist < bestDist) {
+      bestDist = bestIdx = 0; // reset — assign below
+      bestDist = dist;
+      bestIdx  = i;
+    }
+  }
+
+  return bestIdx;
+}
 
 // ── TIMELINE ──────────────────────────────────────────────────
 
@@ -500,27 +572,171 @@ async function updateTimeline(lat, lng) {
   document.getElementById("timeline-meta").textContent =
     `${cfg.label} · ${metadata.scenarios[activeScenario]?.label || activeScenario}`;
 
-  buildTimelineChart(cfg);
+  // Show a loading state on the chart while we fetch
+  showChartLoading();
+
+  // Fetch chart data (cached after first load)
+  const chartData = await fetchChartData(activeMetric);
+
+  if (!chartData) {
+    showChartError();
+    return;
+  }
+
+  // Find the nearest pre-sampled grid point to the click
+  const pointIdx = findNearestPointIndex(lat, lng, chartData.lats, chartData.lons);
+
+  buildTimelineChart(cfg, chartData, pointIdx);
 }
 
-function buildTimelineChart(cfg) {
+function showChartLoading() {
+  const canvas = document.getElementById("timeline-chart");
+  if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
+  // Brief loading label — the fetch is usually fast from cache
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function showChartError() {
+  const canvas = document.getElementById("timeline-chart");
+  if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
+  const ctx    = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#4d7a96";
+  ctx.font      = "12px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Chart data unavailable", canvas.width / 2, canvas.height / 2);
+}
+
+// ── CHART BUILDER ─────────────────────────────────────────────
+// Assembles the full 1980-2100 dataset for the nearest point and
+// renders a Chart.js line chart with:
+//   - Historical period: solid teal line (ensemble mean)
+//   - Future period: solid line per scenario (median) + p10/p90 band
+//   - Viability threshold: dashed amber line
+//   - wine_grapes_gdd: two threshold lines (upper + lower)
+
+function buildTimelineChart(cfg, chartData, pointIdx) {
   const canvas = document.getElementById("timeline-chart");
   if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
 
-  const allYears = [];
-  for (let y = 1980; y <= 2100; y++) allYears.push(y);
+  const histYears = chartData.hist_years;   // 1980-2014
+  const futYears  = chartData.fut_years;    // 2015-2100
+  const allYears  = [...histYears, ...futYears];
 
-  const datasets = [{
-    label: cfg.chart_label,
-    data: allYears.map(() => null),
+  // Pull the value arrays for this point
+  const histMean   = (chartData.historical?.mean?.[pointIdx])   || [];
+
+  // Active scenario future data
+  const scenData   = chartData[activeScenario] || {};
+  const futMedian  = scenData.median?.[pointIdx] || [];
+  const futP10     = scenData.p10?.[pointIdx]    || [];
+  const futP90     = scenData.p90?.[pointIdx]    || [];
+
+  // Build full-length arrays (null where not applicable)
+  // Historical runs 1980-2014, future 2015-2100
+  const histLen  = histYears.length;
+  const futLen   = futYears.length;
+  const totalLen = allYears.length;
+
+  // Historical mean line: values for 1980-2014, null for 2015-2100
+  const histLine = [
+    ...histMean.map(v => v),
+    ...Array(futLen).fill(null),
+  ];
+
+  // Future median line: null for 1980-2014, values for 2015-2100
+  const futLine = [
+    ...Array(histLen).fill(null),
+    ...futMedian.map(v => v),
+  ];
+
+  // P10/P90 band arrays (full length, null in historical portion)
+  const p10Line = [...Array(histLen).fill(null), ...futP10.map(v => v)];
+  const p90Line = [...Array(histLen).fill(null), ...futP90.map(v => v)];
+
+  // Scenario color for the future line
+  const scenarioColor = metadata.scenarios[activeScenario]?.color || "#3ecfcf";
+
+  // ── Datasets ─────────────────────────────────────────────────
+  const datasets = [];
+
+  // P90 upper bound (top of uncertainty band)
+  datasets.push({
+    label: "p90",
+    data: p90Line,
+    borderColor: "transparent",
+    backgroundColor: hexToRgba(scenarioColor, 0.12),
+    pointRadius: 0,
+    fill: "+1",          // fill down to p10 (next dataset)
+    tension: 0.3,
+    order: 3,
+  });
+
+  // P10 lower bound (bottom of uncertainty band)
+  datasets.push({
+    label: "p10",
+    data: p10Line,
+    borderColor: "transparent",
+    backgroundColor: "transparent",
+    pointRadius: 0,
+    fill: false,
+    tension: 0.3,
+    order: 3,
+  });
+
+  // Future scenario median line
+  datasets.push({
+    label: metadata.scenarios[activeScenario]?.label || activeScenario,
+    data: futLine,
+    borderColor: scenarioColor,
+    borderWidth: 1.5,
+    pointRadius: 0,
+    fill: false,
+    tension: 0.3,
+    order: 2,
+  });
+
+  // Historical ensemble mean line
+  datasets.push({
+    label: "Historical",
+    data: histLine,
     borderColor: "#3ecfcf",
     borderWidth: 1.5,
     pointRadius: 0,
     fill: false,
     tension: 0.3,
-  }];
+    order: 2,
+  });
 
-  if (cfg.viability_line != null) {
+  // Viability threshold line(s)
+  // wine_grapes_gdd has two thresholds (too cold + too hot)
+  if (activeMetric === "wine_grapes_gdd") {
+    if (cfg.viability_line_low != null) {
+      datasets.push({
+        label: "Lower limit",
+        data: allYears.map(() => cfg.viability_line_low),
+        borderColor: "rgba(245,158,58,0.55)",
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 1,
+      });
+    }
+    if (cfg.viability_line_high != null) {
+      datasets.push({
+        label: "Upper limit",
+        data: allYears.map(() => cfg.viability_line_high),
+        borderColor: "rgba(248,113,113,0.55)",
+        borderWidth: 1,
+        borderDash: [4, 4],
+        pointRadius: 0,
+        fill: false,
+        order: 1,
+      });
+    }
+  } else if (cfg.viability_line != null) {
     datasets.push({
       label: "Viability threshold",
       data: allYears.map(() => cfg.viability_line),
@@ -529,9 +745,11 @@ function buildTimelineChart(cfg) {
       borderDash: [4, 4],
       pointRadius: 0,
       fill: false,
+      order: 1,
     });
   }
 
+  // ── Chart.js config ──────────────────────────────────────────
   timelineChart = new Chart(canvas, {
     type: "line",
     data: { labels: allYears, datasets },
@@ -539,21 +757,73 @@ function buildTimelineChart(cfg) {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 300 },
-      plugins: { legend: { display: false } },
+      interaction: {
+        mode: "index",
+        intersect: false,
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(12,31,44,0.92)",
+          titleColor: "#3ecfcf",
+          bodyColor: "#8ab4c8",
+          borderColor: "rgba(62,207,207,0.2)",
+          borderWidth: 1,
+          padding: 8,
+          callbacks: {
+            title: (items) => `${items[0].label}`,
+            label: (item) => {
+              if (item.dataset.label === "p90" || item.dataset.label === "p10") return null;
+              const v = item.raw;
+              if (v === null || v === undefined) return null;
+              return `${item.dataset.label}: ${formatValue(v, cfg)}`;
+            },
+          },
+          filter: (item) => {
+            return item.dataset.label !== "p90" && item.dataset.label !== "p10";
+          },
+        },
+      },
       scales: {
         x: {
           display: true,
-          ticks: { color: "#4d7a96", font: { size: 9 }, maxTicksLimit: 7, maxRotation: 0 },
-          grid:  { color: "rgba(255,255,255,0.03)" },
+          ticks: {
+            color: "#4d7a96",
+            font: { size: 9 },
+            maxTicksLimit: 7,
+            maxRotation: 0,
+          },
+          grid: { color: "rgba(255,255,255,0.03)" },
         },
         y: {
           display: true,
+          title: {
+            display: true,
+            text: cfg.chart_label,
+            color: "#4d7a96",
+            font: { size: 9 },
+          },
           ticks: { color: "#4d7a96", font: { size: 9 }, maxTicksLimit: 5 },
-          grid:  { color: "rgba(255,255,255,0.04)" },
+          grid: { color: "rgba(255,255,255,0.04)" },
         },
       },
     },
   });
+}
+
+// ── HELPERS ───────────────────────────────────────────────────
+
+function formatValue(v, cfg) {
+  if (v === null || v === undefined) return "–";
+  const rounded = Math.round(v * 10) / 10;
+  return `${rounded} ${cfg.units}`;
+}
+
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 // ── DEFICIT BADGE ─────────────────────────────────────────────
