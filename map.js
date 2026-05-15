@@ -153,11 +153,10 @@ async function addCaliforniaMask() {
 
 function geoToCanvas(lng, lat) {
   const [west, south, east, north] = IMG_BOUNDS;
-  // X: linear, west=0, east=CANVAS_SIZE
   const x = ((lng - west)  / (east  - west))  * CANVAS_SIZE;
-  // Y: match UV direction — lat=south → y=CANVAS_SIZE, lat=north → y=0
-  // canvas y=0 is top (north), y=CANVAS_SIZE is bottom (south)
-  const y = ((lat - south) / (north - south)) * CANVAS_SIZE;
+  // Y: canvas y=0 is top (north), y=CANVAS_SIZE is bottom (south)
+  // Invert so north maps to 0, south maps to CANVAS_SIZE
+  const y = (1 - (lat - south) / (north - south)) * CANVAS_SIZE;
   return { x, y };
 }
 
