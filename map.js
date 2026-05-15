@@ -184,8 +184,8 @@ function milesToCanvasPixels(miles) {
 // So UV v must be: v = (lat - south) / (north - south)
 // Which with the flip applied becomes: north=v=1 ✅ south=v=0 ✅
 function lngLatToUV(lng, lat) {
-  const u = (lng  - west)  / (east  - west);
-  const v = (lat  - south) / (north - south);
+  const u = (lng   - west)  / (east  - west);
+  const v = (north - lat)   / (north - south); // v=0 at north (canvas top row 0 = v=0 without flip)
   return [u, v];
 }
 
@@ -341,9 +341,7 @@ const revealLayer = {
     // UNPACK_FLIP_Y_WEBGL flips the canvas vertically on upload so that
     // canvas y=0 (north/top) maps to WebGL v=1 (top) correctly
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, revealCanvas);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
     const stride = 4 * 4;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
