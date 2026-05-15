@@ -1,5 +1,5 @@
 /* ============================================================
-   Remnant Biome — styles
+   Remnant Biome - styles
    Consistent with Spectral Glimpse / LesselGeospatial design language
 ============================================================ */
 
@@ -586,9 +586,22 @@ html, body {
 /* Status block */
 #sidebar-status-block {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+}
+
+#sidebar-status-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#sidebar-status-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
 }
 
 .sidebar-status-badge {
