@@ -1,5 +1,5 @@
 /* ============================================================
-   Remnant Biome — map.js
+   Remnant Biome - map.js
 ============================================================ */
 
 const PNG_BASE = "";
@@ -11,17 +11,17 @@ const CA_BOUNDS = {
 
 const PLAY_INTERVAL_MS = 325;
 
-// Tuned bounds — shifted south to correct display offset
+// Tuned bounds, shifted south to correct display offset
 const IMG_BOUNDS = [-128.4375, 29.18, -110.9688, 44.68];
 
 // Reveal circle settings
 const REVEAL_RADIUS_MILES = 25;
 const REVEAL_ZOOM         = 8;
 
-// Outer bbox for the donut dark fill — well beyond CA + PNG spillover
+// Outer bbox for the donut dark fill, well beyond CA + PNG spillover
 const DONUT_BBOX = [-140, 22, -100, 52];
 
-// Fringe rings — annuli just outside the hole, getting darker outward
+// Fringe rings, annuli just outside the hole, getting darker outward
 const FRINGE_INNER_MULT = 0.80;
 const FRINGE_STEPS = [
   { outerMult: 0.85, opacity: 0.20 },
@@ -46,51 +46,51 @@ const CA_BOUNDARY_URL =
 
 const METRIC_CONTEXT = {
   almonds_chill_hours: {
-    what: "Almonds need a period of cold dormancy each winter — called chill hours — to set buds and bloom reliably in spring. Without enough cold, trees bloom unevenly or not at all, which hammers yields.",
+    what: "Almonds need a period of cold dormancy each winter (called chill hours) to set buds and bloom reliably in spring. Without enough cold, trees bloom unevenly or not at all, which hammers yields.",
     trend_direction: "declining",
     viable_note: "California's Central Valley historically had more than enough chill hours. That buffer is shrinking, and some lower-elevation orchards are already hitting the edge.",
-    risk_note: "Almonds are California's #1 agricultural export. Growers are already trialing low-chill varieties, but there's a hard floor — some cold is non-negotiable.",
+    risk_note: "Almonds are California's #1 agricultural export. Growers are already trialing low-chill varieties, but there's a hard floor. Some cold is non-negotiable.",
   },
   wine_grapes_chill_hours: {
     what: "Wine grape vines also need winter chill to break dormancy cleanly. Without it, budburst is delayed and uneven, leading to poor fruit set and lower quality harvests.",
     trend_direction: "declining",
-    viable_note: "Many premium wine regions — Napa, Sonoma, Paso Robles — still get adequate chill, but the margins are tightening, especially at lower elevations.",
+    viable_note: "Many premium wine regions (Napa, Sonoma, Paso Robles) still get adequate chill, but the margins are tightening, especially at lower elevations.",
     risk_note: "Variety selection matters enormously here. High-chill varieties like Cabernet Sauvignon are more exposed than lower-chill varieties like Grenache or Zinfandel.",
   },
   wine_grapes_gdd: {
-    what: "Growing degree days (GDD) measure accumulated heat over the growing season — the thermal energy that drives fruit ripening. Too little and grapes don't ripen fully. Too much and they ripen too fast, losing complexity and driving up sugar without developing flavor.",
+    what: "Growing degree days (GDD) measure accumulated heat over the growing season, the thermal energy that drives fruit ripening. Too little and grapes don't ripen fully. Too much and they ripen too fast, losing complexity and driving up sugar without developing flavor.",
     trend_direction: "increasing",
-    viable_note: "The ideal GDD window for premium wine grapes is roughly 2,500–3,500 degree days. Cooler coastal regions are warming into viability; hotter inland regions are warming past it.",
+    viable_note: "The ideal GDD window for premium wine grapes is roughly 2,500 to 3,500 degree days. Cooler coastal regions are warming into viability; hotter inland regions are warming past it.",
     risk_note: "This metric captures both edges of the wine climate envelope. Coastal fog zones are seeing opportunity; the Central Valley floor is seeing degradation.",
   },
   navel_orange_frost_days: {
-    what: "Navel oranges are frost-sensitive — a single hard freeze can destroy a season's crop. This metric counts annual days below the critical freeze threshold, where fruit and tree tissue are at risk.",
+    what: "Navel oranges are frost-sensitive. A single hard freeze can destroy a season's crop. This metric counts annual days below the critical freeze threshold, where fruit and tree tissue are at risk.",
     trend_direction: "declining",
-    viable_note: "Warmer winters are actually reducing frost risk for oranges in most of California. This is one metric where climate change is moving in growers' favor — for now.",
+    viable_note: "Warmer winters are actually reducing frost risk for oranges in most of California. This is one metric where climate change is moving in growers' favor, at least for now.",
     risk_note: "The caveat is weather volatility. Even if average frost days decline, rare but severe cold snaps (like those seen in Texas in 2021) can cause catastrophic one-season losses.",
   },
   avocado_hard_freeze_days: {
-    what: "Avocados are among the most cold-sensitive tree crops grown in California. Even a brief hard freeze — temperatures below 30°F — can kill fruit, damage wood, and in severe cases kill entire trees.",
+    what: "Avocados are among the most cold-sensitive tree crops grown in California. Even a brief hard freeze (temperatures below 30 degrees F) can kill fruit, damage wood, and in severe cases kill entire trees.",
     trend_direction: "declining",
     viable_note: "Southern California's coastal avocado belt has always had marginal frost exposure. Warming winters are reducing that risk, which could expand viable growing areas northward.",
-    risk_note: "Like oranges, the bigger concern is extreme event risk rather than average conditions. Avocado trees take years to mature — a single bad freeze can wipe out an entire orchard investment.",
+    risk_note: "Like oranges, the bigger concern is extreme event risk rather than average conditions. Avocado trees take years to mature, and a single bad freeze can wipe out an entire orchard investment.",
   },
   navel_orangeworm_dd: {
-    what: "Navel orangeworm (NOW) is the most damaging insect pest of California's nut crops — almonds, pistachios, and walnuts. Warmer winters accelerate its development cycle, allowing more generations per year and higher populations at harvest.",
+    what: "Navel orangeworm (NOW) is the most damaging insect pest of California's nut crops, including almonds, pistachios, and walnuts. Warmer winters accelerate its development cycle, allowing more generations per year and higher populations at harvest.",
     trend_direction: "increasing",
-    viable_note: "Degree day accumulation drives how many NOW generations complete before almond harvest. More heat = more generations = more damage. Current thresholds are calibrated to current climates.",
+    viable_note: "Degree day accumulation drives how many NOW generations complete before almond harvest. More heat means more generations, which means more damage. Current thresholds are calibrated to current climates.",
     risk_note: "This is one of the clearest win-for-pests scenarios in California agriculture. Warmer conditions extend the season and reduce winter die-off, compounding pressure on growers year after year.",
   },
   vine_mealybug_development_days: {
-    what: "Vine mealybug is a serious vineyard pest that spreads grapevine leafroll virus — one of the most economically damaging vine diseases in California. Warmer winters mean more mealybug generations survive and develop, increasing vineyard pressure.",
+    what: "Vine mealybug is a serious vineyard pest that spreads grapevine leafroll virus, one of the most economically damaging vine diseases in California. Warmer winters mean more mealybug generations survive and develop, increasing vineyard pressure.",
     trend_direction: "increasing",
     viable_note: "Mealybug development stalls in cold weather. As winters warm, the pest is able to complete more of its life cycle through the cold months, leading to higher populations come spring.",
     risk_note: "The economic damage from leafroll virus can take years to show and is essentially irreversible once established in a vineyard block. Earlier and heavier pressure from mealybug accelerates that timeline.",
   },
   spotted_wing_drosophila_mortality: {
-    what: "Spotted wing drosophila (SWD) is an invasive fruit fly that attacks soft-skinned fruits — berries, cherries, stone fruits — before harvest. Unlike most fruit flies, it targets healthy ripening fruit. Cold winter temperatures kill overwintering adults, providing natural population control.",
+    what: "Spotted wing drosophila (SWD) is an invasive fruit fly that attacks soft-skinned fruits including berries, cherries, and stone fruits before harvest. Unlike most fruit flies, it targets healthy ripening fruit. Cold winter temperatures kill overwintering adults, providing natural population control.",
     trend_direction: "declining",
-    viable_note: "This metric tracks winter cold mortality — more cold means more SWD die-off, which is good for growers. Warming winters mean fewer SWD die, which means heavier pressure the following season.",
+    viable_note: "This metric tracks winter cold mortality. More cold means more SWD die-off, which is good for growers. Warming winters mean fewer SWD die, which means heavier pressure the following season.",
     risk_note: "SWD has already caused significant economic damage to California berry and cherry growers since its arrival in 2008. Reduced winter mortality from warming is expected to worsen pressure in most regions.",
   },
 };
@@ -913,15 +913,15 @@ async function buildTrendSentence(cfg, ctx, cachedData, cachedIdx) {
     const pct  = Math.round(Math.abs((v2014 - v1980) / v1980) * 100);
     const dir  = v2014 > v1980 ? "increased" : "decreased";
     trendEl.textContent =
-      `Between 1980 and 2014, ${cfg.label.toLowerCase()} at this location ${dir} by ${pct}% — from ${formatValue(v1980, cfg)} to ${formatValue(v2014, cfg)}.`;
+      `Between 1980 and 2014, ${cfg.label.toLowerCase()} at this location ${dir} by ${pct}%, from ${formatValue(v1980, cfg)} to ${formatValue(v2014, cfg)}.`;
     return;
   }
 
-  // For future scenarios, compare ~2025 to 2100
+  // For future scenarios, compare 2026 to 2100
   const scenData = chartData[activeScenario];
   if (!scenData?.median?.[pointIdx]) { trendEl.textContent = ""; return; }
 
-  const startYear = 2025;
+  const startYear = 2026;
   const endYear   = 2100;
   const vStart    = getValueForYear(chartData, pointIdx, startYear, activeScenario);
   const vEnd      = getValueForYear(chartData, pointIdx, endYear,   activeScenario);
@@ -933,7 +933,7 @@ async function buildTrendSentence(cfg, ctx, cachedData, cachedIdx) {
   const scenLabel = metadata.scenarios[activeScenario]?.label || activeScenario;
 
   trendEl.textContent =
-    `Under ${scenLabel}, ${cfg.label.toLowerCase()} here are projected to ${dir} from ${formatValue(vStart, cfg)} in ${startYear} to ${formatValue(vEnd, cfg)} by ${endYear} — a ${pct}% change.`;
+    `Under ${scenLabel}, ${cfg.label.toLowerCase()} here are projected to ${dir} from ${formatValue(vStart, cfg)} in ${startYear} to ${formatValue(vEnd, cfg)} by ${endYear}, a ${pct}% change.`;
 }
 
 // ── VALUE LOOKUP HELPER ───────────────────────────────────────
