@@ -1009,18 +1009,18 @@ const _tooltipInitInterval = setInterval(() => {
 const SCENARIO_TOOLTIPS = {
   "historical": {
     title: "Historical (1980–2014)",
-    desc:  "Real observed climate data. No projections — this is what actually happened.",
+    desc:  "Real observed climate data. No projections, this is what actually happened.",
   },
   "ssp245": {
-    title: "Current Policy — SSP2-4.5",
+    title: "Current Policy - SSP2-4.5",
     desc:  "A middle-of-the-road future where some climate policies are enacted but emissions don't fall fast. Roughly where the world is headed today.",
   },
   "ssp370": {
-    title: "High Emissions — SSP3-7.0",
+    title: "High Emissions - SSP3-7.0",
     desc:  "A future with limited climate action and continued heavy fossil fuel use. Regional conflicts and slow international cooperation.",
   },
   "ssp585": {
-    title: "Worst Case — SSP5-8.5",
+    title: "Worst Case - SSP5-8.5",
     desc:  "Maximum fossil fuel development with no meaningful emissions limits. Considered an unlikely but physically possible upper bound.",
   },
 };
