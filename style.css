@@ -704,3 +704,103 @@ html, body {
   flex-shrink: 0;
   margin-top: 2px;
 }
+
+/* ============================================================
+   METRIC PILL TOOLTIPS
+============================================================ */
+
+#pill-tooltip {
+  position: fixed;
+  z-index: 1100;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--panel-radius);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  padding: 10px 12px;
+  max-width: 240px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#pill-tooltip.visible {
+  opacity: 1;
+}
+
+#pill-tooltip-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--panel-accent);
+  margin-bottom: 5px;
+  line-height: 1.3;
+}
+
+#pill-tooltip-desc {
+  font-size: 10px;
+  color: var(--panel-text-muted);
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+#pill-tooltip-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 7px;
+}
+
+.tooltip-color-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--panel-text-muted);
+  line-height: 1.4;
+}
+
+.tooltip-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   SCENARIO BUTTON TOOLTIPS
+============================================================ */
+
+#scenario-tooltip {
+  position: fixed;
+  z-index: 1100;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: var(--panel-radius);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  padding: 10px 12px;
+  max-width: 200px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+#scenario-tooltip.visible {
+  opacity: 1;
+}
+
+#scenario-tooltip-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--panel-accent);
+  margin-bottom: 5px;
+  line-height: 1.3;
+}
+
+#scenario-tooltip-desc {
+  font-size: 10px;
+  color: var(--panel-text-muted);
+  line-height: 1.5;
+}
