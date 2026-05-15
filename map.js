@@ -151,21 +151,29 @@ async function addCaliforniaMask() {
 // Returns the canvas element itself (not a data URL) so the WebGL layer
 // can upload it directly as a texture with proper alpha.
 
+// PNG native dimensions — no georeference, just pixels
+// MapLibre stretches this to IMG_BOUNDS; we must match that stretch on canvas
+const PNG_WIDTH  = 559;
+const PNG_HEIGHT = 495;
+
 function geoToCanvas(lng, lat) {
   const [west, south, east, north] = IMG_BOUNDS;
-  const x = ((lng - west)  / (east  - west))  * CANVAS_SIZE;
-  // Y: canvas y=0 is top (north), y=CANVAS_SIZE is bottom (south)
-  // Invert so north maps to 0, south maps to CANVAS_SIZE
-  const y = (1 - (lat - south) / (north - south)) * CANVAS_SIZE;
+  // Fraction across the geographic extent
+  const fracX = (lng  - west)  / (east  - west);
+  const fracY = (north - lat)  / (north - south); // 0=north, 1=south
+  // Map to canvas pixels — canvas is CANVAS_SIZE x CANVAS_SIZE
+  // PNG is drawn stretched to fill canvas, so fractions map directly
+  const x = fracX * CANVAS_SIZE;
+  const y = fracY * CANVAS_SIZE;
   return { x, y };
 }
 
 function milesToCanvasPixels(miles) {
-  // PNG pixels are linearly spaced in lat/lng — same as geoToCanvas
-  // 1 degree latitude ≈ 69 miles; canvas spans (north - south) degrees
+  // Convert miles to canvas pixels in the Y direction
+  // IMG_BOUNDS spans (north-south) degrees; 1 deg lat = 69 miles
+  // Canvas height = CANVAS_SIZE pixels covering that span
   const [, south, , north] = IMG_BOUNDS;
-  const degSpan   = north - south;
-  const milesSpan = degSpan * 69.0;
+  const milesSpan = (north - south) * 69.0;
   return (miles / milesSpan) * CANVAS_SIZE;
 }
 
