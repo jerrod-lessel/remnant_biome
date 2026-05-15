@@ -1003,3 +1003,91 @@ const _tooltipInitInterval = setInterval(() => {
     initPillTooltips();
   }
 }, 200);
+
+// ── SCENARIO TOOLTIPS ─────────────────────────────────────────
+
+const SCENARIO_TOOLTIPS = {
+  "historical": {
+    title: "Historical (1980–2014)",
+    desc:  "Real observed climate data. No projections — this is what actually happened.",
+  },
+  "ssp245": {
+    title: "Current Policy — SSP2-4.5",
+    desc:  "A middle-of-the-road future where some climate policies are enacted but emissions don't fall fast. Roughly where the world is headed today.",
+  },
+  "ssp370": {
+    title: "High Emissions — SSP3-7.0",
+    desc:  "A future with limited climate action and continued heavy fossil fuel use. Regional conflicts and slow international cooperation.",
+  },
+  "ssp585": {
+    title: "Worst Case — SSP5-8.5",
+    desc:  "Maximum fossil fuel development with no meaningful emissions limits. Considered an unlikely but physically possible upper bound.",
+  },
+};
+
+(function initScenarioTooltips() {
+  const tipEl = document.createElement("div");
+  tipEl.id = "scenario-tooltip";
+  tipEl.innerHTML = `
+    <div id="scenario-tooltip-title"></div>
+    <div id="scenario-tooltip-desc"></div>
+  `;
+  document.body.appendChild(tipEl);
+
+  let hideTimer = null;
+
+  function showScenarioTooltip(btn, scenarioKey) {
+    const data = SCENARIO_TOOLTIPS[scenarioKey];
+    if (!data) return;
+
+    clearTimeout(hideTimer);
+
+    document.getElementById("scenario-tooltip-title").textContent = data.title;
+    document.getElementById("scenario-tooltip-desc").textContent  = data.desc;
+
+    const rect   = btn.getBoundingClientRect();
+    const tipW   = 200;
+    const margin = 8;
+
+    let left = rect.left + (rect.width / 2) - (tipW / 2);
+    left = Math.max(margin, Math.min(left, window.innerWidth - tipW - margin));
+
+    tipEl.style.left  = `${left}px`;
+    tipEl.style.width = `${tipW}px`;
+    tipEl.style.top   = `-9999px`;
+    tipEl.classList.add("visible");
+
+    requestAnimationFrame(() => {
+      const tipH = tipEl.offsetHeight;
+      let top = rect.top - tipH - 8;
+      if (top < margin) top = rect.bottom + 8;
+      tipEl.style.top = `${top}px`;
+    });
+  }
+
+  function hideScenarioTooltip(delay = 120) {
+    hideTimer = setTimeout(() => {
+      tipEl.classList.remove("visible");
+    }, delay);
+  }
+
+  document.querySelectorAll(".scenario-btn").forEach(btn => {
+    const key = btn.dataset.scenario;
+    btn.addEventListener("mouseenter", () => showScenarioTooltip(btn, key));
+    btn.addEventListener("mouseleave", () => hideScenarioTooltip(120));
+    btn.addEventListener("touchend", (e) => {
+      const isVisible    = tipEl.classList.contains("visible");
+      const wasThisBtn   = tipEl._activeBtn === btn;
+      hideScenarioTooltip(0);
+      if (!isVisible || !wasThisBtn) {
+        e.preventDefault();
+        tipEl._activeBtn = btn;
+        showScenarioTooltip(btn, key);
+      }
+    });
+  });
+
+  document.addEventListener("touchstart", (e) => {
+    if (!e.target.closest(".scenario-btn")) hideScenarioTooltip(0);
+  });
+})();
