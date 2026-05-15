@@ -252,8 +252,10 @@ const tl = lngLatToMercator(west,  north);
 // UV coords: map each corner's lat/lng linearly onto canvas [0,1] space
 // This matches how geoToCanvas() works — pure linear lat/lng mapping
 function lngLatToUV(lng, lat) {
-  const u = (lng - west)  / (east  - west);
-  const v = (north - lat) / (north - south); // v=0 at north (canvas top)
+  const u = (lng  - west)  / (east  - west);
+  // WebGL v=0 is at bottom of texture, v=1 at top
+  // lat=south → v=0 (texture bottom), lat=north → v=1 (texture top)
+  const v = (lat  - south) / (north - south);
   return [u, v];
 }
 const uvBL = lngLatToUV(west,  south);
