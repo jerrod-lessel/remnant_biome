@@ -40,6 +40,61 @@ const BASEMAP_TILES = {
 const CA_BOUNDARY_URL =
   "https://services.arcgis.com/ue9rwulIoeLEI9bj/arcgis/rest/services/US_StateBoundaries/FeatureServer/0";
 
+// ── AGRONOMIC CONTEXT ─────────────────────────────────────────
+// Plain-English "what does this mean?" copy for each metric.
+// Shown in the interpretation sidebar regardless of location/year.
+
+const METRIC_CONTEXT = {
+  almonds_chill_hours: {
+    what: "Almonds need a period of cold dormancy each winter — called chill hours — to set buds and bloom reliably in spring. Without enough cold, trees bloom unevenly or not at all, which hammers yields.",
+    trend_direction: "declining",
+    viable_note: "California's Central Valley historically had more than enough chill hours. That buffer is shrinking, and some lower-elevation orchards are already hitting the edge.",
+    risk_note: "Almonds are California's #1 agricultural export. Growers are already trialing low-chill varieties, but there's a hard floor — some cold is non-negotiable.",
+  },
+  wine_grapes_chill_hours: {
+    what: "Wine grape vines also need winter chill to break dormancy cleanly. Without it, budburst is delayed and uneven, leading to poor fruit set and lower quality harvests.",
+    trend_direction: "declining",
+    viable_note: "Many premium wine regions — Napa, Sonoma, Paso Robles — still get adequate chill, but the margins are tightening, especially at lower elevations.",
+    risk_note: "Variety selection matters enormously here. High-chill varieties like Cabernet Sauvignon are more exposed than lower-chill varieties like Grenache or Zinfandel.",
+  },
+  wine_grapes_gdd: {
+    what: "Growing degree days (GDD) measure accumulated heat over the growing season — the thermal energy that drives fruit ripening. Too little and grapes don't ripen fully. Too much and they ripen too fast, losing complexity and driving up sugar without developing flavor.",
+    trend_direction: "increasing",
+    viable_note: "The ideal GDD window for premium wine grapes is roughly 2,500–3,500 degree days. Cooler coastal regions are warming into viability; hotter inland regions are warming past it.",
+    risk_note: "This metric captures both edges of the wine climate envelope. Coastal fog zones are seeing opportunity; the Central Valley floor is seeing degradation.",
+  },
+  navel_orange_frost_days: {
+    what: "Navel oranges are frost-sensitive — a single hard freeze can destroy a season's crop. This metric counts annual days below the critical freeze threshold, where fruit and tree tissue are at risk.",
+    trend_direction: "declining",
+    viable_note: "Warmer winters are actually reducing frost risk for oranges in most of California. This is one metric where climate change is moving in growers' favor — for now.",
+    risk_note: "The caveat is weather volatility. Even if average frost days decline, rare but severe cold snaps (like those seen in Texas in 2021) can cause catastrophic one-season losses.",
+  },
+  avocado_hard_freeze_days: {
+    what: "Avocados are among the most cold-sensitive tree crops grown in California. Even a brief hard freeze — temperatures below 30°F — can kill fruit, damage wood, and in severe cases kill entire trees.",
+    trend_direction: "declining",
+    viable_note: "Southern California's coastal avocado belt has always had marginal frost exposure. Warming winters are reducing that risk, which could expand viable growing areas northward.",
+    risk_note: "Like oranges, the bigger concern is extreme event risk rather than average conditions. Avocado trees take years to mature — a single bad freeze can wipe out an entire orchard investment.",
+  },
+  navel_orangeworm_dd: {
+    what: "Navel orangeworm (NOW) is the most damaging insect pest of California's nut crops — almonds, pistachios, and walnuts. Warmer winters accelerate its development cycle, allowing more generations per year and higher populations at harvest.",
+    trend_direction: "increasing",
+    viable_note: "Degree day accumulation drives how many NOW generations complete before almond harvest. More heat = more generations = more damage. Current thresholds are calibrated to current climates.",
+    risk_note: "This is one of the clearest win-for-pests scenarios in California agriculture. Warmer conditions extend the season and reduce winter die-off, compounding pressure on growers year after year.",
+  },
+  vine_mealybug_development_days: {
+    what: "Vine mealybug is a serious vineyard pest that spreads grapevine leafroll virus — one of the most economically damaging vine diseases in California. Warmer winters mean more mealybug generations survive and develop, increasing vineyard pressure.",
+    trend_direction: "increasing",
+    viable_note: "Mealybug development stalls in cold weather. As winters warm, the pest is able to complete more of its life cycle through the cold months, leading to higher populations come spring.",
+    risk_note: "The economic damage from leafroll virus can take years to show and is essentially irreversible once established in a vineyard block. Earlier and heavier pressure from mealybug accelerates that timeline.",
+  },
+  spotted_wing_drosophila_mortality: {
+    what: "Spotted wing drosophila (SWD) is an invasive fruit fly that attacks soft-skinned fruits — berries, cherries, stone fruits — before harvest. Unlike most fruit flies, it targets healthy ripening fruit. Cold winter temperatures kill overwintering adults, providing natural population control.",
+    trend_direction: "declining",
+    viable_note: "This metric tracks winter cold mortality — more cold means more SWD die-off, which is good for growers. Warming winters mean fewer SWD die, which means heavier pressure the following season.",
+    risk_note: "SWD has already caused significant economic damage to California berry and cherry growers since its arrival in 2008. Reduced winter mortality from warming is expected to worsen pressure in most regions.",
+  },
+};
+
 let metadata       = null;
 let activeMetric   = "almonds_chill_hours";
 let activeScenario = "ssp245";
@@ -51,15 +106,12 @@ let timelineChart  = null;
 let clickedPoint   = null;
 let activeBasemap  = "carto-light";
 let revealActive   = false;
+let sidebarOpen    = false;
 
 // ── CHART DATA CACHE ──────────────────────────────────────────
-// Holds fetched chart_data.json per metric so we only fetch once each.
-// Key = metric name, value = parsed JSON object (or "loading" sentinel).
 const chartDataCache = {};
 
 // ── IMAGE PRELOAD CACHE ───────────────────────────────────────
-// Browser caches the actual image files; we just need to fire new Image()
-// to trigger the fetch. Keeping handles here prevents GC from evicting them.
 const preloadedImages = {};
 
 // ── MAP INIT ──────────────────────────────────────────────────
@@ -289,6 +341,11 @@ function updateMapLayer() {
       "ca-mask-layer"
     );
   }
+
+  // Update sidebar if open
+  if (sidebarOpen && clickedPoint) {
+    updateSidebarContent();
+  }
 }
 
 function showRasterLayer() {
@@ -304,10 +361,6 @@ function hideRasterLayer() {
 }
 
 // ── IMAGE PRELOADING ──────────────────────────────────────────
-// During playback, fire off fetches for the next several frames
-// before they're needed. The browser caches them so updateMapLayer()
-// finds them ready. We keep Image handles in preloadedImages so the
-// GC doesn't evict them before they finish loading.
 
 function preloadFrames(fromYear, count = 6) {
   const maxYear = activeScenario === "historical" ? 2014 : 2100;
@@ -415,7 +468,6 @@ function startPlay() {
     document.getElementById("year-slider").value = 1980;
   }
 
-  // Kick off an initial preload batch before the first tick
   preloadFrames(activeYear, 8);
 
   playTimer = setInterval(() => {
@@ -425,7 +477,6 @@ function startPlay() {
     document.getElementById("year-slider").value = activeYear;
     updateYearDisplay();
     updateMapLayer();
-    // Preload the next several frames on every tick
     preloadFrames(activeYear, 6);
   }, PLAY_INTERVAL_MS);
 }
@@ -470,6 +521,7 @@ function dismiss() {
   revealActive = false;
   clearRevealMask();
   hideRasterLayer();
+  closeSidebar();
   map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
 }
 
@@ -487,6 +539,9 @@ map.on("click", async e => {
     revealActive = true;
   }
 
+  // Auto-close sidebar on new click
+  if (sidebarOpen) closeSidebar();
+
   updateRevealMask(lng, lat);
   map.easeTo({ center: [lng, lat], zoom: REVEAL_ZOOM, duration: 600 });
 
@@ -498,16 +553,12 @@ map.on("click", async e => {
 });
 
 // ── CHART DATA FETCHING ───────────────────────────────────────
-// Fetches chart_data.json for the active metric, using an in-memory cache
-// so each metric is only downloaded once per session.
 
 async function fetchChartData(metric) {
-  // Already cached and loaded
   if (chartDataCache[metric] && chartDataCache[metric] !== "loading") {
     return chartDataCache[metric];
   }
 
-  // Already in flight — wait for it
   if (chartDataCache[metric] === "loading") {
     return new Promise((resolve) => {
       const poll = setInterval(() => {
@@ -519,7 +570,6 @@ async function fetchChartData(metric) {
     });
   }
 
-  // First request — fetch and cache
   chartDataCache[metric] = "loading";
   try {
     const url  = `${PNG_BASE}/pngs/${metric}/chart_data.json`;
@@ -536,9 +586,6 @@ async function fetchChartData(metric) {
 }
 
 // ── NEAREST POINT LOOKUP ──────────────────────────────────────
-// Given a clicked lat/lng and the grid of sampled points, find the index
-// of the nearest sampled point. Uses squared Euclidean distance — fast
-// enough for ~3,500 points with no need for a spatial index.
 
 function findNearestPointIndex(clickLat, clickLng, lats, lons) {
   let bestIdx  = 0;
@@ -549,7 +596,7 @@ function findNearestPointIndex(clickLat, clickLng, lats, lons) {
     const dlon = lons[i] - clickLng;
     const dist = dlat * dlat + dlon * dlon;
     if (dist < bestDist) {
-      bestDist = bestIdx = 0; // reset — assign below
+      bestDist = bestIdx = 0;
       bestDist = dist;
       bestIdx  = i;
     }
@@ -572,10 +619,8 @@ async function updateTimeline(lat, lng) {
   document.getElementById("timeline-meta").textContent =
     `${cfg.label} · ${metadata.scenarios[activeScenario]?.label || activeScenario}`;
 
-  // Show a loading state on the chart while we fetch
   showChartLoading();
 
-  // Fetch chart data (cached after first load)
   const chartData = await fetchChartData(activeMetric);
 
   if (!chartData) {
@@ -583,16 +628,18 @@ async function updateTimeline(lat, lng) {
     return;
   }
 
-  // Find the nearest pre-sampled grid point to the click
   const pointIdx = findNearestPointIndex(lat, lng, chartData.lats, chartData.lons);
-
   buildTimelineChart(cfg, chartData, pointIdx);
+
+  // If sidebar is open, refresh it with the new point's data
+  if (sidebarOpen) {
+    updateSidebarContent(chartData, pointIdx);
+  }
 }
 
 function showChartLoading() {
   const canvas = document.getElementById("timeline-chart");
   if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
-  // Brief loading label — the fetch is usually fast from cache
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
@@ -609,71 +656,44 @@ function showChartError() {
 }
 
 // ── CHART BUILDER ─────────────────────────────────────────────
-// Assembles the full 1980-2100 dataset for the nearest point and
-// renders a Chart.js line chart with:
-//   - Historical period: solid teal line (ensemble mean)
-//   - Future period: solid line per scenario (median) + p10/p90 band
-//   - Viability threshold: dashed amber line
-//   - wine_grapes_gdd: two threshold lines (upper + lower)
 
 function buildTimelineChart(cfg, chartData, pointIdx) {
   const canvas = document.getElementById("timeline-chart");
   if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
 
-  const histYears = chartData.hist_years;   // 1980-2014
-  const futYears  = chartData.fut_years;    // 2015-2100
+  const histYears = chartData.hist_years;
+  const futYears  = chartData.fut_years;
   const allYears  = [...histYears, ...futYears];
 
-  // Pull the value arrays for this point
-  const histMean   = (chartData.historical?.mean?.[pointIdx])   || [];
+  const histMean  = (chartData.historical?.mean?.[pointIdx]) || [];
+  const scenData  = chartData[activeScenario] || {};
+  const futMedian = scenData.median?.[pointIdx] || [];
+  const futP10    = scenData.p10?.[pointIdx]    || [];
+  const futP90    = scenData.p90?.[pointIdx]    || [];
 
-  // Active scenario future data
-  const scenData   = chartData[activeScenario] || {};
-  const futMedian  = scenData.median?.[pointIdx] || [];
-  const futP10     = scenData.p10?.[pointIdx]    || [];
-  const futP90     = scenData.p90?.[pointIdx]    || [];
-
-  // Build full-length arrays (null where not applicable)
-  // Historical runs 1980-2014, future 2015-2100
   const histLen  = histYears.length;
   const futLen   = futYears.length;
-  const totalLen = allYears.length;
 
-  // Historical mean line: values for 1980-2014, null for 2015-2100
-  const histLine = [
-    ...histMean.map(v => v),
-    ...Array(futLen).fill(null),
-  ];
+  const histLine = [...histMean.map(v => v), ...Array(futLen).fill(null)];
+  const futLine  = [...Array(histLen).fill(null), ...futMedian.map(v => v)];
+  const p10Line  = [...Array(histLen).fill(null), ...futP10.map(v => v)];
+  const p90Line  = [...Array(histLen).fill(null), ...futP90.map(v => v)];
 
-  // Future median line: null for 1980-2014, values for 2015-2100
-  const futLine = [
-    ...Array(histLen).fill(null),
-    ...futMedian.map(v => v),
-  ];
-
-  // P10/P90 band arrays (full length, null in historical portion)
-  const p10Line = [...Array(histLen).fill(null), ...futP10.map(v => v)];
-  const p90Line = [...Array(histLen).fill(null), ...futP90.map(v => v)];
-
-  // Scenario color for the future line
   const scenarioColor = metadata.scenarios[activeScenario]?.color || "#3ecfcf";
 
-  // ── Datasets ─────────────────────────────────────────────────
   const datasets = [];
 
-  // P90 upper bound (top of uncertainty band)
   datasets.push({
     label: "p90",
     data: p90Line,
     borderColor: "transparent",
     backgroundColor: hexToRgba(scenarioColor, 0.12),
     pointRadius: 0,
-    fill: "+1",          // fill down to p10 (next dataset)
+    fill: "+1",
     tension: 0.3,
     order: 3,
   });
 
-  // P10 lower bound (bottom of uncertainty band)
   datasets.push({
     label: "p10",
     data: p10Line,
@@ -685,7 +705,6 @@ function buildTimelineChart(cfg, chartData, pointIdx) {
     order: 3,
   });
 
-  // Future scenario median line
   datasets.push({
     label: metadata.scenarios[activeScenario]?.label || activeScenario,
     data: futLine,
@@ -697,7 +716,6 @@ function buildTimelineChart(cfg, chartData, pointIdx) {
     order: 2,
   });
 
-  // Historical ensemble mean line
   datasets.push({
     label: "Historical",
     data: histLine,
@@ -709,8 +727,6 @@ function buildTimelineChart(cfg, chartData, pointIdx) {
     order: 2,
   });
 
-  // Viability threshold line(s)
-  // wine_grapes_gdd has two thresholds (too cold + too hot)
   if (activeMetric === "wine_grapes_gdd") {
     if (cfg.viability_line_low != null) {
       datasets.push({
@@ -749,7 +765,6 @@ function buildTimelineChart(cfg, chartData, pointIdx) {
     });
   }
 
-  // ── Chart.js config ──────────────────────────────────────────
   timelineChart = new Chart(canvas, {
     type: "line",
     data: { labels: allYears, datasets },
@@ -757,10 +772,7 @@ function buildTimelineChart(cfg, chartData, pointIdx) {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 300 },
-      interaction: {
-        mode: "index",
-        intersect: false,
-      },
+      interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -779,36 +791,196 @@ function buildTimelineChart(cfg, chartData, pointIdx) {
               return `${item.dataset.label}: ${formatValue(v, cfg)}`;
             },
           },
-          filter: (item) => {
-            return item.dataset.label !== "p90" && item.dataset.label !== "p10";
-          },
+          filter: (item) => item.dataset.label !== "p90" && item.dataset.label !== "p10",
         },
       },
       scales: {
         x: {
           display: true,
-          ticks: {
-            color: "#4d7a96",
-            font: { size: 9 },
-            maxTicksLimit: 7,
-            maxRotation: 0,
-          },
+          ticks: { color: "#4d7a96", font: { size: 9 }, maxTicksLimit: 7, maxRotation: 0 },
           grid: { color: "rgba(255,255,255,0.03)" },
         },
         y: {
           display: true,
-          title: {
-            display: true,
-            text: cfg.chart_label,
-            color: "#4d7a96",
-            font: { size: 9 },
-          },
+          title: { display: true, text: cfg.chart_label, color: "#4d7a96", font: { size: 9 } },
           ticks: { color: "#4d7a96", font: { size: 9 }, maxTicksLimit: 5 },
           grid: { color: "rgba(255,255,255,0.04)" },
         },
       },
     },
   });
+}
+
+// ── INTERPRETATION SIDEBAR ────────────────────────────────────
+
+document.getElementById("interpret-btn").addEventListener("click", async () => {
+  if (!clickedPoint) return;
+  openSidebar();
+});
+
+document.getElementById("sidebar-close").addEventListener("click", closeSidebar);
+
+function openSidebar() {
+  sidebarOpen = true;
+  const sidebar = document.getElementById("interpret-sidebar");
+  sidebar.classList.remove("hidden");
+  // Trigger slide-in animation
+  requestAnimationFrame(() => sidebar.classList.add("open"));
+  updateSidebarContent();
+}
+
+function closeSidebar() {
+  sidebarOpen = false;
+  const sidebar = document.getElementById("interpret-sidebar");
+  sidebar.classList.remove("open");
+  // Wait for animation to finish before hiding
+  sidebar.addEventListener("transitionend", () => {
+    if (!sidebarOpen) sidebar.classList.add("hidden");
+  }, { once: true });
+}
+
+async function updateSidebarContent(cachedData, cachedIdx) {
+  if (!clickedPoint || !metadata) return;
+
+  const cfg     = metadata.metrics[activeMetric];
+  const ctx     = METRIC_CONTEXT[activeMetric];
+  if (!cfg || !ctx) return;
+
+  // ── Header ────────────────────────────────────────────────
+  document.getElementById("sidebar-metric-name").textContent = cfg.label;
+  document.getElementById("sidebar-location").textContent =
+    `${clickedPoint.lat.toFixed(3)}° N, ${Math.abs(clickedPoint.lng).toFixed(3)}° W`;
+
+  // ── Category tag ──────────────────────────────────────────
+  const catEl = document.getElementById("sidebar-category");
+  const isCrop = cfg.category === "crop";
+  catEl.textContent = isCrop ? "Crop" : "Pest";
+  catEl.className   = "sidebar-category-tag " + (isCrop ? "tag-crop" : "tag-pest");
+
+  // ── Status badge (uses current year's data) ───────────────
+  await updateSidebarStatus(cfg, cachedData, cachedIdx);
+
+  // ── Static agronomic context ──────────────────────────────
+  document.getElementById("sidebar-what").textContent      = ctx.what;
+  document.getElementById("sidebar-risk").textContent      = ctx.risk_note;
+
+  // ── Trend sentence (uses chart data for the point) ────────
+  await buildTrendSentence(cfg, ctx, cachedData, cachedIdx);
+}
+
+async function updateSidebarStatus(cfg, cachedData, cachedIdx) {
+  const statusEl  = document.getElementById("sidebar-status-badge");
+  const statusTxt = document.getElementById("sidebar-status-text");
+  const valueEl   = document.getElementById("sidebar-current-value");
+
+  // Try to get the value for the current year at this point
+  let chartData = cachedData;
+  let pointIdx  = cachedIdx;
+
+  if (!chartData || pointIdx == null) {
+    chartData = await fetchChartData(activeMetric);
+    if (!chartData || !clickedPoint) { statusEl.className = "sidebar-status-badge"; return; }
+    pointIdx = findNearestPointIndex(clickedPoint.lat, clickedPoint.lng, chartData.lats, chartData.lons);
+  }
+
+  const value = getValueForYear(chartData, pointIdx, activeYear, activeScenario);
+  if (value == null) { statusEl.className = "sidebar-status-badge"; return; }
+
+  const { label, color, cssClass } = classifyValue(value, cfg);
+
+  statusEl.className = `sidebar-status-badge ${cssClass}`;
+  statusTxt.textContent = label;
+  valueEl.textContent   = formatValue(value, cfg);
+}
+
+async function buildTrendSentence(cfg, ctx, cachedData, cachedIdx) {
+  const trendEl = document.getElementById("sidebar-trend");
+
+  let chartData = cachedData;
+  let pointIdx  = cachedIdx;
+
+  if (!chartData || pointIdx == null) {
+    chartData = await fetchChartData(activeMetric);
+    if (!chartData || !clickedPoint) { trendEl.textContent = ""; return; }
+    pointIdx = findNearestPointIndex(clickedPoint.lat, clickedPoint.lng, chartData.lats, chartData.lons);
+  }
+
+  if (activeScenario === "historical") {
+    // For historical, compare 1980 to 2014
+    const v1980 = getValueForYear(chartData, pointIdx, 1980, "historical");
+    const v2014 = getValueForYear(chartData, pointIdx, 2014, "historical");
+    if (v1980 == null || v2014 == null) { trendEl.textContent = ""; return; }
+    const pct  = Math.round(Math.abs((v2014 - v1980) / v1980) * 100);
+    const dir  = v2014 > v1980 ? "increased" : "decreased";
+    trendEl.textContent =
+      `Between 1980 and 2014, ${cfg.label.toLowerCase()} at this location ${dir} by ${pct}% — from ${formatValue(v1980, cfg)} to ${formatValue(v2014, cfg)}.`;
+    return;
+  }
+
+  // For future scenarios, compare ~2025 to 2100
+  const scenData = chartData[activeScenario];
+  if (!scenData?.median?.[pointIdx]) { trendEl.textContent = ""; return; }
+
+  const startYear = 2025;
+  const endYear   = 2100;
+  const vStart    = getValueForYear(chartData, pointIdx, startYear, activeScenario);
+  const vEnd      = getValueForYear(chartData, pointIdx, endYear,   activeScenario);
+
+  if (vStart == null || vEnd == null) { trendEl.textContent = ""; return; }
+
+  const pct = Math.round(Math.abs((vEnd - vStart) / Math.max(vStart, 1)) * 100);
+  const dir = vEnd > vStart ? "rise" : "fall";
+  const scenLabel = metadata.scenarios[activeScenario]?.label || activeScenario;
+
+  trendEl.textContent =
+    `Under ${scenLabel}, ${cfg.label.toLowerCase()} here are projected to ${dir} from ${formatValue(vStart, cfg)} in ${startYear} to ${formatValue(vEnd, cfg)} by ${endYear} — a ${pct}% change.`;
+}
+
+// ── VALUE LOOKUP HELPER ───────────────────────────────────────
+// Given chart data and a point index, returns the metric value
+// for a specific year and scenario.
+
+function getValueForYear(chartData, pointIdx, year, scenario) {
+  if (year <= 2014) {
+    // Historical period
+    const idx = chartData.hist_years?.indexOf(year);
+    if (idx == null || idx < 0) return null;
+    return chartData.historical?.mean?.[pointIdx]?.[idx] ?? null;
+  } else {
+    // Future period
+    const idx = chartData.fut_years?.indexOf(year);
+    if (idx == null || idx < 0) return null;
+    return chartData[scenario]?.median?.[pointIdx]?.[idx] ?? null;
+  }
+}
+
+// ── VALUE CLASSIFICATION ──────────────────────────────────────
+// Determines green/amber/red status from metric value + config thresholds.
+
+function classifyValue(value, cfg) {
+  const t   = cfg.thresholds || {};
+  const dir = cfg.direction;
+
+  if (dir === "higher_is_better") {
+    if (value >= t.green_min) return { label: "Fully viable",  color: "#4ade80", cssClass: "status-green" };
+    if (value >= t.amber_min) return { label: "Marginal",      color: "#f59e3a", cssClass: "status-amber" };
+    return                           { label: "Deficit",       color: "#f87171", cssClass: "status-red"   };
+
+  } else if (dir === "lower_is_better") {
+    if (value <= t.green_max) return { label: "Low risk",      color: "#4ade80", cssClass: "status-green" };
+    if (value <= t.amber_max) return { label: "Moderate risk", color: "#f59e3a", cssClass: "status-amber" };
+    return                           { label: "High risk",     color: "#f87171", cssClass: "status-red"   };
+
+  } else if (dir === "middle_is_better") {
+    if (value >= t.green_min && value <= t.green_max)
+      return { label: "Ideal range",  color: "#4ade80", cssClass: "status-green" };
+    if ((value >= t.amber_low_min  && value <= t.amber_low_max) ||
+        (value >= t.amber_high_min && value <= t.amber_high_max))
+      return { label: "Marginal",     color: "#f59e3a", cssClass: "status-amber" };
+    return   { label: "Out of range", color: "#f87171", cssClass: "status-red"   };
+  }
+
+  return { label: "Unknown", color: "#7a9ab0", cssClass: "" };
 }
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -858,13 +1030,12 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     isPlaying ? stopPlay() : startPlay();
   } else if (e.key === "Escape") {
-    dismiss();
+    if (sidebarOpen) closeSidebar();
+    else dismiss();
   }
 });
 
 // ── PILL TOOLTIPS ─────────────────────────────────────────────
-// One tooltip element, repositioned on each pill hover.
-// Content is generated from metadata.json — no hardcoding per metric.
 
 let tooltipHideTimer = null;
 
@@ -883,9 +1054,6 @@ function createTooltipEl() {
 const tooltipEl = createTooltipEl();
 
 function buildColorRows(cfg) {
-  // Generates plain-English color key rows from metadata thresholds.
-  // Handles all three direction types: higher_is_better, lower_is_better,
-  // and middle_is_better (wine grapes GDD).
   const t   = cfg.thresholds || {};
   const u   = cfg.units || "";
   const dir = cfg.direction;
@@ -895,14 +1063,11 @@ function buildColorRows(cfg) {
     rows.push({ color: "#4ade80", label: `${t.green_min}+ ${u}: fully viable` });
     rows.push({ color: "#f59e3a", label: `${t.amber_min}–${t.green_min} ${u}: marginal` });
     rows.push({ color: "#f87171", label: `Under ${t.amber_min} ${u}: deficit` });
-
   } else if (dir === "lower_is_better") {
     rows.push({ color: "#4ade80", label: `${t.green_max} ${u}: fully viable` });
     rows.push({ color: "#f59e3a", label: `${t.green_max + 1}–${t.amber_max} ${u}: marginal` });
     rows.push({ color: "#f87171", label: `Over ${t.amber_max} ${u}: high risk` });
-
   } else if (dir === "middle_is_better") {
-    // wine grapes GDD — viable in a middle band, red on both ends
     rows.push({ color: "#4ade80", label: `${t.green_min}–${t.green_max} ${u}: ideal range` });
     rows.push({ color: "#f59e3a", label: `${t.amber_low_min}–${t.amber_low_max} or ${t.amber_high_min}–${t.amber_high_max} ${u}: marginal` });
     rows.push({ color: "#f87171", label: `Under ${t.red_low_max} or over ${t.red_high_min} ${u}: outside viable range` });
@@ -918,7 +1083,6 @@ function showTooltip(pill, metricKey) {
 
   clearTimeout(tooltipHideTimer);
 
-  // Populate content
   document.getElementById("pill-tooltip-title").textContent = cfg.label;
   document.getElementById("pill-tooltip-desc").textContent  = cfg.description;
 
@@ -934,27 +1098,21 @@ function showTooltip(pill, metricKey) {
     colorsEl.appendChild(row);
   });
 
-  // Position above the pill, centered horizontally
-  const rect    = pill.getBoundingClientRect();
-  const tipW    = 240;
-  const margin  = 8;
+  const rect   = pill.getBoundingClientRect();
+  const tipW   = 240;
+  const margin = 8;
 
   let left = rect.left + (rect.width / 2) - (tipW / 2);
-  // Clamp so it doesn't go off screen edges
   left = Math.max(margin, Math.min(left, window.innerWidth - tipW - margin));
 
   tooltipEl.style.left  = `${left}px`;
   tooltipEl.style.width = `${tipW}px`;
-
-  // Position above the pill; after render we'll know the height
-  tooltipEl.style.top = `-9999px`;
+  tooltipEl.style.top   = `-9999px`;
   tooltipEl.classList.add("visible");
 
-  // Now measure and place properly above the pill
   requestAnimationFrame(() => {
     const tipH = tooltipEl.offsetHeight;
     let top = rect.top - tipH - 8;
-    // If too close to top of screen, flip below the pill instead
     if (top < margin) top = rect.bottom + 8;
     tooltipEl.style.top = `${top}px`;
   });
@@ -969,14 +1127,10 @@ function hideTooltip(delay = 120) {
 function initPillTooltips() {
   document.querySelectorAll(".pill").forEach(pill => {
     const metricKey = pill.dataset.metric;
-
-    // Desktop: hover
     pill.addEventListener("mouseenter", () => showTooltip(pill, metricKey));
     pill.addEventListener("mouseleave", () => hideTooltip(120));
-
-    // Mobile: tap to toggle
     pill.addEventListener("touchend", (e) => {
-      const isVisible = tooltipEl.classList.contains("visible");
+      const isVisible  = tooltipEl.classList.contains("visible");
       const wasThisPill = tooltipEl._activePill === pill;
       hideTooltip(0);
       if (!isVisible || !wasThisPill) {
@@ -987,16 +1141,11 @@ function initPillTooltips() {
     });
   });
 
-  // Hide tooltip when clicking anywhere else on mobile
   document.addEventListener("touchstart", (e) => {
     if (!e.target.closest(".pill")) hideTooltip(0);
   });
 }
 
-// Init tooltips once metadata is loaded.
-// We hook into the existing loadMetadata flow by patching map's load handler.
-const _origMapLoad = map.once.bind(map);
-map.once("load", async () => {});  // ensure the event fires
 const _tooltipInitInterval = setInterval(() => {
   if (metadata) {
     clearInterval(_tooltipInitInterval);
@@ -1076,8 +1225,8 @@ const SCENARIO_TOOLTIPS = {
     btn.addEventListener("mouseenter", () => showScenarioTooltip(btn, key));
     btn.addEventListener("mouseleave", () => hideScenarioTooltip(120));
     btn.addEventListener("touchend", (e) => {
-      const isVisible    = tipEl.classList.contains("visible");
-      const wasThisBtn   = tipEl._activeBtn === btn;
+      const isVisible  = tipEl.classList.contains("visible");
+      const wasThisBtn = tipEl._activeBtn === btn;
       hideScenarioTooltip(0);
       if (!isVisible || !wasThisBtn) {
         e.preventDefault();
