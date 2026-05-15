@@ -861,3 +861,145 @@ document.addEventListener("keydown", e => {
     dismiss();
   }
 });
+
+// ── PILL TOOLTIPS ─────────────────────────────────────────────
+// One tooltip element, repositioned on each pill hover.
+// Content is generated from metadata.json — no hardcoding per metric.
+
+let tooltipHideTimer = null;
+
+function createTooltipEl() {
+  const el = document.createElement("div");
+  el.id = "pill-tooltip";
+  el.innerHTML = `
+    <div id="pill-tooltip-title"></div>
+    <div id="pill-tooltip-desc"></div>
+    <div id="pill-tooltip-colors"></div>
+  `;
+  document.body.appendChild(el);
+  return el;
+}
+
+const tooltipEl = createTooltipEl();
+
+function buildColorRows(cfg) {
+  // Generates plain-English color key rows from metadata thresholds.
+  // Handles all three direction types: higher_is_better, lower_is_better,
+  // and middle_is_better (wine grapes GDD).
+  const t   = cfg.thresholds || {};
+  const u   = cfg.units || "";
+  const dir = cfg.direction;
+  const rows = [];
+
+  if (dir === "higher_is_better") {
+    rows.push({ color: "#4ade80", label: `${t.green_min}+ ${u}: fully viable` });
+    rows.push({ color: "#f59e3a", label: `${t.amber_min}–${t.green_min} ${u}: marginal` });
+    rows.push({ color: "#f87171", label: `Under ${t.amber_min} ${u}: deficit` });
+
+  } else if (dir === "lower_is_better") {
+    rows.push({ color: "#4ade80", label: `${t.green_max} ${u}: fully viable` });
+    rows.push({ color: "#f59e3a", label: `${t.green_max + 1}–${t.amber_max} ${u}: marginal` });
+    rows.push({ color: "#f87171", label: `Over ${t.amber_max} ${u}: high risk` });
+
+  } else if (dir === "middle_is_better") {
+    // wine grapes GDD — viable in a middle band, red on both ends
+    rows.push({ color: "#4ade80", label: `${t.green_min}–${t.green_max} ${u}: ideal range` });
+    rows.push({ color: "#f59e3a", label: `${t.amber_low_min}–${t.amber_low_max} or ${t.amber_high_min}–${t.amber_high_max} ${u}: marginal` });
+    rows.push({ color: "#f87171", label: `Under ${t.red_low_max} or over ${t.red_high_min} ${u}: outside viable range` });
+  }
+
+  return rows;
+}
+
+function showTooltip(pill, metricKey) {
+  if (!metadata) return;
+  const cfg = metadata.metrics[metricKey];
+  if (!cfg) return;
+
+  clearTimeout(tooltipHideTimer);
+
+  // Populate content
+  document.getElementById("pill-tooltip-title").textContent = cfg.label;
+  document.getElementById("pill-tooltip-desc").textContent  = cfg.description;
+
+  const colorsEl = document.getElementById("pill-tooltip-colors");
+  colorsEl.innerHTML = "";
+  buildColorRows(cfg).forEach(({ color, label }) => {
+    const row = document.createElement("div");
+    row.className = "tooltip-color-row";
+    row.innerHTML = `
+      <div class="tooltip-swatch" style="background:${color}"></div>
+      <span>${label}</span>
+    `;
+    colorsEl.appendChild(row);
+  });
+
+  // Position above the pill, centered horizontally
+  const rect    = pill.getBoundingClientRect();
+  const tipW    = 240;
+  const margin  = 8;
+
+  let left = rect.left + (rect.width / 2) - (tipW / 2);
+  // Clamp so it doesn't go off screen edges
+  left = Math.max(margin, Math.min(left, window.innerWidth - tipW - margin));
+
+  tooltipEl.style.left  = `${left}px`;
+  tooltipEl.style.width = `${tipW}px`;
+
+  // Position above the pill; after render we'll know the height
+  tooltipEl.style.top = `-9999px`;
+  tooltipEl.classList.add("visible");
+
+  // Now measure and place properly above the pill
+  requestAnimationFrame(() => {
+    const tipH = tooltipEl.offsetHeight;
+    let top = rect.top - tipH - 8;
+    // If too close to top of screen, flip below the pill instead
+    if (top < margin) top = rect.bottom + 8;
+    tooltipEl.style.top = `${top}px`;
+  });
+}
+
+function hideTooltip(delay = 120) {
+  tooltipHideTimer = setTimeout(() => {
+    tooltipEl.classList.remove("visible");
+  }, delay);
+}
+
+function initPillTooltips() {
+  document.querySelectorAll(".pill").forEach(pill => {
+    const metricKey = pill.dataset.metric;
+
+    // Desktop: hover
+    pill.addEventListener("mouseenter", () => showTooltip(pill, metricKey));
+    pill.addEventListener("mouseleave", () => hideTooltip(120));
+
+    // Mobile: tap to toggle
+    pill.addEventListener("touchend", (e) => {
+      const isVisible = tooltipEl.classList.contains("visible");
+      const wasThisPill = tooltipEl._activePill === pill;
+      hideTooltip(0);
+      if (!isVisible || !wasThisPill) {
+        e.preventDefault();
+        tooltipEl._activePill = pill;
+        showTooltip(pill, metricKey);
+      }
+    });
+  });
+
+  // Hide tooltip when clicking anywhere else on mobile
+  document.addEventListener("touchstart", (e) => {
+    if (!e.target.closest(".pill")) hideTooltip(0);
+  });
+}
+
+// Init tooltips once metadata is loaded.
+// We hook into the existing loadMetadata flow by patching map's load handler.
+const _origMapLoad = map.once.bind(map);
+map.once("load", async () => {});  // ensure the event fires
+const _tooltipInitInterval = setInterval(() => {
+  if (metadata) {
+    clearInterval(_tooltipInitInterval);
+    initPillTooltips();
+  }
+}, 200);
