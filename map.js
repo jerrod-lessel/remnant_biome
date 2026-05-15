@@ -178,11 +178,14 @@ function milesToCanvasPixels(miles) {
   return (miles / milesSpan) * CANVAS_SIZE;
 }
 
-// WebGL UV: v=0 at south (canvas bottom), v=1 at north (canvas top)
-// This is OPPOSITE to geoToCanvas Y — correct by WebGL convention
+// WebGL UV: with UNPACK_FLIP_Y_WEBGL=true, canvas is flipped on upload
+// so v=0 now maps to canvas BOTTOM (south) and v=1 to canvas TOP (north)
+// After the flip: north=v=1, south=v=0 — same direction as geoToCanvas fracY inverted
+// So UV v must be: v = (lat - south) / (north - south)
+// Which with the flip applied becomes: north=v=1 ✅ south=v=0 ✅
 function lngLatToUV(lng, lat) {
   const u = (lng  - west)  / (east  - west);
-  const v = (lat  - south) / (north - south); // bottom-origin, opposite of canvas
+  const v = (lat  - south) / (north - south);
   return [u, v];
 }
 
@@ -335,10 +338,12 @@ const revealLayer = {
     gl.useProgram(this.program);
 
     // Upload canvas as texture each frame
-    // texImage2D reads canvas rows top-to-bottom → row 0 = canvas top = north
-    // WebGL samples row 0 at v=1, last row at v=0 — hence lngLatToUV uses (lat-south)
+    // UNPACK_FLIP_Y_WEBGL flips the canvas vertically on upload so that
+    // canvas y=0 (north/top) maps to WebGL v=1 (top) correctly
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, revealCanvas);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
     const stride = 4 * 4;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
