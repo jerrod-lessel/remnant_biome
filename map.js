@@ -139,7 +139,7 @@ async function addCaliforniaMask() {
       },
     });
 
-    console.log("CA mask added from Esri FeatureServer");
+    console.log("CA mask added");
   } catch (e) {
     console.warn("CA mask failed:", e);
   }
@@ -147,43 +147,51 @@ async function addCaliforniaMask() {
 
 // ── CANVAS COMPOSITING ────────────────────────────────────────
 //
-// Composites the PNG with a radial reveal mask onto an offscreen canvas.
-// Returns the canvas element itself (not a data URL) so the WebGL layer
-// can upload it directly as a texture with proper alpha.
+// Two coordinate systems must stay consistent:
+//
+// 1. geoToCanvas — places the radial gradient on the canvas
+//    Canvas 2D: y=0 is TOP (north), y=CANVAS_SIZE is BOTTOM (south)
+//    So: y = (north - lat) / (north - south) * CANVAS_SIZE
+//
+// 2. lngLatToUV — maps quad corners to texture sample points
+//    WebGL texImage2D uploads canvas rows top-to-bottom
+//    WebGL samples: v=0 is BOTTOM of texture, v=1 is TOP
+//    Canvas top (north) → uploaded as row 0 → sampled at v=1
+//    Canvas bottom (south) → uploaded as last row → sampled at v=0
+//    So: v = (lat - south) / (north - south)   ← OPPOSITE of geoToCanvas Y
+//
+// These must be opposites. That's not a hack — it's the correct
+// relationship between canvas 2D (top-origin) and WebGL UV (bottom-origin).
 
-// PNG native dimensions — no georeference, just pixels
-// MapLibre stretches this to IMG_BOUNDS; we must match that stretch on canvas
-const PNG_WIDTH  = 559;
-const PNG_HEIGHT = 495;
+const [west, south, east, north] = IMG_BOUNDS;
 
+// Canvas 2D: place gradient center — north=y0, south=y=CANVAS_SIZE
 function geoToCanvas(lng, lat) {
-  const [west, south, east, north] = IMG_BOUNDS;
-  // Fraction across the geographic extent
-  const fracX = (lng  - west)  / (east  - west);
-  const fracY = (north - lat) / (north - south); // 0=north (canvas top), 1=south (canvas bottom)
-  // Map to canvas pixels — canvas is CANVAS_SIZE x CANVAS_SIZE
-  // PNG is drawn stretched to fill canvas, so fractions map directly
-  const x = fracX * CANVAS_SIZE;
-  const y = fracY * CANVAS_SIZE;
+  const x = ((lng  - west)  / (east  - west))  * CANVAS_SIZE;
+  const y = ((north - lat)  / (north - south)) * CANVAS_SIZE; // top-origin
   return { x, y };
 }
 
+// Miles to canvas pixels using the Y span of IMG_BOUNDS
 function milesToCanvasPixels(miles) {
-  // Convert miles to canvas pixels in the Y direction
-  // IMG_BOUNDS spans (north-south) degrees; 1 deg lat = 69 miles
-  // Canvas height = CANVAS_SIZE pixels covering that span
-  const [, south, , north] = IMG_BOUNDS;
   const milesSpan = (north - south) * 69.0;
   return (miles / milesSpan) * CANVAS_SIZE;
 }
 
-// Shared offscreen canvas — reused across frames for performance
+// WebGL UV: v=0 at south (canvas bottom), v=1 at north (canvas top)
+// This is OPPOSITE to geoToCanvas Y — correct by WebGL convention
+function lngLatToUV(lng, lat) {
+  const u = (lng  - west)  / (east  - west);
+  const v = (lat  - south) / (north - south); // bottom-origin, opposite of canvas
+  return [u, v];
+}
+
+// Shared offscreen canvas
 const revealCanvas  = document.createElement("canvas");
 revealCanvas.width  = CANVAS_SIZE;
 revealCanvas.height = CANVAS_SIZE;
 const revealCtx     = revealCanvas.getContext("2d");
 
-// Tracks whether the canvas has valid content to render
 let revealReady = false;
 
 async function compositeReveal(pngUrl, lng, lat) {
@@ -191,23 +199,24 @@ async function compositeReveal(pngUrl, lng, lat) {
     const img = new Image();
 
     img.onload = () => {
+      // Clear canvas
       revealCtx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Step 1: draw full PNG onto canvas
+      // Step 1: draw full PNG — top of image = north, bottom = south
       revealCtx.globalCompositeOperation = "source-over";
       revealCtx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-      // Step 2: build radial gradient — opaque center, transparent edge
+      // Step 2: radial gradient centered on click point in canvas coords
+      // geoToCanvas uses top-origin (north=y0) matching drawImage orientation
       const { x, y } = geoToCanvas(lng, lat);
       const outerR    = milesToCanvasPixels(REVEAL_RADIUS_MILES);
       const innerR    = outerR * (1 - REVEAL_FEATHER);
 
       const grad = revealCtx.createRadialGradient(x, y, innerR, x, y, outerR);
-      grad.addColorStop(0, "rgba(0,0,0,1)");
-      grad.addColorStop(1, "rgba(0,0,0,0)");
+      grad.addColorStop(0, "rgba(0,0,0,1)"); // opaque center — PNG kept
+      grad.addColorStop(1, "rgba(0,0,0,0)"); // transparent edge — PNG erased
 
-      // Step 3: destination-in — keeps PNG pixels only where gradient is opaque
-      // This correctly erases PNG pixels outside the circle to true transparency
+      // Step 3: destination-in erases PNG pixels outside the gradient circle
       revealCtx.globalCompositeOperation = "destination-in";
       revealCtx.fillStyle = grad;
       revealCtx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
@@ -216,30 +225,18 @@ async function compositeReveal(pngUrl, lng, lat) {
       resolve(revealCanvas);
     };
 
-    img.onerror = (e) => { console.error(`PNG load failed: ${pngUrl}`, e); reject(new Error(`PNG load failed: ${pngUrl}`)); };
-    console.log(`Compositing PNG: ${pngUrl} at canvas (${Math.round(0)},${Math.round(0)})`);
+    img.onerror = (e) => reject(new Error(`PNG load failed: ${pngUrl}`));
     img.src = pngUrl;
   });
 }
 
 // ── WEBGL CUSTOM LAYER ────────────────────────────────────────
 //
-// A MapLibre custom layer renders directly into the map's WebGL context.
-// This gives us full control over blending — so transparent canvas pixels
-// stay transparent instead of becoming black (the MapLibre image source bug).
-//
-// How it works:
-//   - onAdd: compile shaders, create GPU buffers for a rectangle quad
-//             mapped to IMG_BOUNDS in Mercator coordinates
-//   - render: upload canvas as texture each frame, draw quad with alpha blend
-//   - map.triggerRepaint(): tells MapLibre to call render() again
-//
-// The vertex shader transforms Mercator coords to clip space using the
-// map's projection matrix (u_matrix), which MapLibre provides automatically.
-// This means the quad pans, zooms, and rotates perfectly with the map.
+// Renders the composited canvas as a geo-anchored texture using MapLibre's
+// custom layer API. Vertex positions are in Mercator [0,1] space so
+// MapLibre's u_matrix maps them correctly to screen. UV coords use the
+// bottom-origin WebGL convention (v=0 south, v=1 north).
 
-// Convert lng/lat to Mercator (0–1 range that MapLibre uses internally)
-// Used only for quad vertex positions — MapLibre's matrix expects Mercator
 function lngLatToMercator(lng, lat) {
   const x = (lng + 180) / 360;
   const y = (1 - Math.log(
@@ -248,64 +245,45 @@ function lngLatToMercator(lng, lat) {
   return [x, y];
 }
 
-// Quad vertex POSITIONS are in Mercator (for correct geo-anchoring in MapLibre)
-// Quad vertex UVs map to the PNG canvas which is linearly spaced in lat/lng
-// The PNG is NOT Mercator — it's a plain geographic raster
-const [west, south, east, north] = IMG_BOUNDS;
+// Quad corners — Mercator positions for geo-anchoring
 const bl = lngLatToMercator(west,  south);
 const br = lngLatToMercator(east,  south);
 const tr = lngLatToMercator(east,  north);
 const tl = lngLatToMercator(west,  north);
 
-// UV coords: map each corner's lat/lng linearly onto canvas [0,1] space
-// This matches how geoToCanvas() works — pure linear lat/lng mapping
-function lngLatToUV(lng, lat) {
-  const u = (lng  - west)  / (east  - west);
-  // WebGL v=0 is at bottom of texture, v=1 at top
-  // lat=south → v=0 (texture bottom), lat=north → v=1 (texture top)
-  const v = (north - lat) / (north - south); // north=v=0 matches canvas top=y=0
-  return [u, v];
-}
-const uvBL = lngLatToUV(west,  south);
-const uvBR = lngLatToUV(east,  south);
-const uvTR = lngLatToUV(east,  north);
-const uvTL = lngLatToUV(west,  north);
+// UV corners — bottom-origin WebGL convention
+const uvBL = lngLatToUV(west,  south); // [0, 0] — south=v0
+const uvBR = lngLatToUV(east,  south); // [1, 0]
+const uvTR = lngLatToUV(east,  north); // [1, 1] — north=v1
+const uvTL = lngLatToUV(west,  north); // [0, 1]
 
-// Two triangles forming a rectangle, with UV coords (texture coordinates)
-// Positions (Mercator x,y) and UVs (0–1 texture space) interleaved
-// Triangle 1: bl, br, tr — Triangle 2: bl, tr, tl
 const quadVertices = new Float32Array([
   //  mercX     mercY      u         v
-  bl[0], bl[1],  uvBL[0], uvBL[1],  // bottom-left
-  br[0], br[1],  uvBR[0], uvBR[1],  // bottom-right
-  tr[0], tr[1],  uvTR[0], uvTR[1],  // top-right
-  bl[0], bl[1],  uvBL[0], uvBL[1],  // bottom-left
-  tr[0], tr[1],  uvTR[0], uvTR[1],  // top-right
-  tl[0], tl[1],  uvTL[0], uvTL[1],  // top-left
+  bl[0], bl[1],  uvBL[0], uvBL[1],  // SW corner
+  br[0], br[1],  uvBR[0], uvBR[1],  // SE corner
+  tr[0], tr[1],  uvTR[0], uvTR[1],  // NE corner
+  bl[0], bl[1],  uvBL[0], uvBL[1],  // SW corner
+  tr[0], tr[1],  uvTR[0], uvTR[1],  // NE corner
+  tl[0], tl[1],  uvTL[0], uvTL[1],  // NW corner
 ]);
 
 const revealLayer = {
-  id:             "reveal-layer",
-  type:           "custom",
-  renderingMode:  "2d",
+  id:            "reveal-layer",
+  type:          "custom",
+  renderingMode: "2d",
 
-  // ── onAdd: runs once when layer is added to the map ──────────
   onAdd(map, gl) {
-    // Vertex shader — transforms Mercator position to screen clip space
     const vsSource = `
       uniform mat4 u_matrix;
       attribute vec2 a_pos;
       attribute vec2 a_uv;
       varying vec2 v_uv;
       void main() {
-          // u_matrix from MapLibre's custom layer maps mercator [0,1] coords
-        // directly to clip space — no need to multiply by tile extent
         gl_Position = u_matrix * vec4(a_pos, 0.0, 1.0);
         v_uv = a_uv;
       }
     `;
 
-    // Fragment shader — samples the canvas texture with alpha blending
     const fsSource = `
       precision mediump float;
       uniform sampler2D u_texture;
@@ -315,41 +293,34 @@ const revealLayer = {
       }
     `;
 
-    // Compile shaders
     const vs = gl.createShader(gl.VERTEX_SHADER);
     gl.shaderSource(vs, vsSource);
     gl.compileShader(vs);
-    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-      console.error("Vertex shader error:", gl.getShaderInfoLog(vs));
-    }
+    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS))
+      console.error("VS error:", gl.getShaderInfoLog(vs));
 
     const fs = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
-    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-      console.error("Fragment shader error:", gl.getShaderInfoLog(fs));
-    }
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS))
+      console.error("FS error:", gl.getShaderInfoLog(fs));
 
     this.program = gl.createProgram();
     gl.attachShader(this.program, vs);
     gl.attachShader(this.program, fs);
     gl.linkProgram(this.program);
-    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
-      console.error("Shader link error:", gl.getProgramInfoLog(this.program));
-    }
+    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS))
+      console.error("Link error:", gl.getProgramInfoLog(this.program));
 
-    // Get attribute and uniform locations
     this.a_pos     = gl.getAttribLocation(this.program,  "a_pos");
     this.a_uv      = gl.getAttribLocation(this.program,  "a_uv");
     this.u_matrix  = gl.getUniformLocation(this.program, "u_matrix");
     this.u_texture = gl.getUniformLocation(this.program, "u_texture");
 
-    // Upload quad geometry to GPU
     this.buffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.bufferData(gl.ARRAY_BUFFER, quadVertices, gl.STATIC_DRAW);
 
-    // Create texture slot (will be filled each frame from revealCanvas)
     this.texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -358,37 +329,30 @@ const revealLayer = {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   },
 
-  // ── render: called by MapLibre every frame ────────────────────
   render(gl, matrix) {
-    if (!revealReady) return; // nothing to draw yet
+    if (!revealReady) return;
 
     gl.useProgram(this.program);
 
-    // Upload canvas as texture — does this every frame so updates appear
+    // Upload canvas as texture each frame
+    // texImage2D reads canvas rows top-to-bottom → row 0 = canvas top = north
+    // WebGL samples row 0 at v=1, last row at v=0 — hence lngLatToUV uses (lat-south)
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texImage2D(
-      gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA,
-      gl.UNSIGNED_BYTE, revealCanvas
-    );
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, revealCanvas);
 
-    // Bind vertex buffer and set up attribute pointers
-    // Each vertex: [mercX(4), mercY(4), u(4), v(4)] = 16 bytes stride
-    const stride = 4 * 4; // 4 floats × 4 bytes
+    const stride = 4 * 4;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
     gl.enableVertexAttribArray(this.a_pos);
     gl.vertexAttribPointer(this.a_pos, 2, gl.FLOAT, false, stride, 0);
     gl.enableVertexAttribArray(this.a_uv);
     gl.vertexAttribPointer(this.a_uv, 2, gl.FLOAT, false, stride, 2 * 4);
 
-    // Set uniforms
     gl.uniformMatrix4fv(this.u_matrix, false, matrix);
     gl.uniform1i(this.u_texture, 0);
 
-    // Enable alpha blending — this is what makes transparency work
     gl.enable(gl.BLEND);
-    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); // premultiplied alpha
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
 
-    // Draw the two triangles (6 vertices)
     gl.drawArrays(gl.TRIANGLES, 0, 6);
   },
 };
@@ -417,11 +381,9 @@ async function updateMapLayer() {
 
   const pngUrl = getPngUrl(activeMetric, scenario, activeYear);
 
-  console.log(`updateMapLayer: pngUrl=${pngUrl} clickedPoint=${JSON.stringify(clickedPoint)}`);
   try {
     await compositeReveal(pngUrl, clickedPoint.lng, clickedPoint.lat);
     revealReady = true;
-    console.log(`revealReady set true, triggering repaint`);
     map.triggerRepaint();
   } catch (err) {
     console.error("Reveal composite failed:", err);
@@ -434,10 +396,7 @@ map.on("load", async () => {
   const ok = await loadMetadata();
   if (!ok) return;
   await addCaliforniaMask();
-
-  // Add the custom WebGL layer above the CA mask
   map.addLayer(revealLayer, "ca-mask-layer");
-
   updateYearDisplay();
   checkDeficitBadge();
 });
@@ -565,9 +524,9 @@ function dismiss() {
   document.getElementById("timeline-panel").classList.add("hidden");
   document.getElementById("click-hint").classList.remove("hidden");
   if (activeMarker) activeMarker.remove();
-  activeMarker  = null;
-  clickedPoint  = null;
-  revealReady   = false;
+  activeMarker = null;
+  clickedPoint = null;
+  revealReady  = false;
   map.triggerRepaint();
   map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
 }
