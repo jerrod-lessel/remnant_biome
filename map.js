@@ -151,39 +151,22 @@ async function addCaliforniaMask() {
 // Returns the canvas element itself (not a data URL) so the WebGL layer
 // can upload it directly as a texture with proper alpha.
 
-function latToMercatorY(lat) {
-  return (1 - Math.log(
-    Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)
-  ) / Math.PI) / 2;
-}
-
 function geoToCanvas(lng, lat) {
-  const [west, , east, ] = IMG_BOUNDS;
-  const [, south, , north] = IMG_BOUNDS;
-
-  // X: longitude is linear
-  const x = ((lng - west) / (east - west)) * CANVAS_SIZE;
-
-  // Y: must use Mercator projection to match how the quad is mapped
-  const mercY      = latToMercatorY(lat);
-  const mercYNorth = latToMercatorY(north);
-  const mercYSouth = latToMercatorY(south);
-  const y = ((mercY - mercYNorth) / (mercYSouth - mercYNorth)) * CANVAS_SIZE;
-
+  const [west, south, east, north] = IMG_BOUNDS;
+  // X: linear, west=0, east=CANVAS_SIZE
+  const x = ((lng  - west)  / (east  - west))  * CANVAS_SIZE;
+  // Y: linear, north=0 (canvas top), south=CANVAS_SIZE (canvas bottom)
+  const y = ((north - lat)  / (north - south)) * CANVAS_SIZE;
   return { x, y };
 }
 
-function milesToCanvasPixels(miles, lat) {
-  // Convert miles to canvas pixels using Mercator-aware vertical scale at lat
-  // 1 degree latitude = 69 miles; Mercator stretches by 1/cos(lat)
-  const mercYNorth = latToMercatorY(IMG_BOUNDS[3]);
-  const mercYSouth = latToMercatorY(IMG_BOUNDS[1]);
-  const mercSpan   = mercYSouth - mercYNorth; // in 0-1 Mercator units
-  // 1 Mercator unit = 360 degrees longitude = ~40075 km at equator
-  // At a given lat, 1 Mercator unit vertically = 180/π * ... simplify:
-  // pixels per mile = CANVAS_SIZE / (mercSpan * 360 * 69 / 2)
-  const milesPerMercUnit = (360 * 69) / 2; // ~12420 miles per full Mercator height
-  return (miles / (mercSpan * milesPerMercUnit)) * CANVAS_SIZE;
+function milesToCanvasPixels(miles) {
+  // PNG pixels are linearly spaced in lat/lng — same as geoToCanvas
+  // 1 degree latitude ≈ 69 miles; canvas spans (north - south) degrees
+  const [, south, , north] = IMG_BOUNDS;
+  const degSpan   = north - south;
+  const milesSpan = degSpan * 69.0;
+  return (miles / milesSpan) * CANVAS_SIZE;
 }
 
 // Shared offscreen canvas — reused across frames for performance
@@ -248,6 +231,7 @@ async function compositeReveal(pngUrl, lng, lat) {
 // This means the quad pans, zooms, and rotates perfectly with the map.
 
 // Convert lng/lat to Mercator (0–1 range that MapLibre uses internally)
+// Used only for quad vertex positions — MapLibre's matrix expects Mercator
 function lngLatToMercator(lng, lat) {
   const x = (lng + 180) / 360;
   const y = (1 - Math.log(
@@ -256,25 +240,38 @@ function lngLatToMercator(lng, lat) {
   return [x, y];
 }
 
-// Build the four corners of IMG_BOUNDS as Mercator coords
-// Order: bottom-left, bottom-right, top-right, top-left (for two triangles)
+// Quad vertex POSITIONS are in Mercator (for correct geo-anchoring in MapLibre)
+// Quad vertex UVs map to the PNG canvas which is linearly spaced in lat/lng
+// The PNG is NOT Mercator — it's a plain geographic raster
 const [west, south, east, north] = IMG_BOUNDS;
 const bl = lngLatToMercator(west,  south);
 const br = lngLatToMercator(east,  south);
 const tr = lngLatToMercator(east,  north);
 const tl = lngLatToMercator(west,  north);
 
+// UV coords: map each corner's lat/lng linearly onto canvas [0,1] space
+// This matches how geoToCanvas() works — pure linear lat/lng mapping
+function lngLatToUV(lng, lat) {
+  const u = (lng - west)  / (east  - west);
+  const v = (north - lat) / (north - south); // v=0 at north (canvas top)
+  return [u, v];
+}
+const uvBL = lngLatToUV(west,  south);
+const uvBR = lngLatToUV(east,  south);
+const uvTR = lngLatToUV(east,  north);
+const uvTL = lngLatToUV(west,  north);
+
 // Two triangles forming a rectangle, with UV coords (texture coordinates)
 // Positions (Mercator x,y) and UVs (0–1 texture space) interleaved
 // Triangle 1: bl, br, tr — Triangle 2: bl, tr, tl
 const quadVertices = new Float32Array([
-  //  mercX    mercY    u     v
-  bl[0], bl[1],  0.0,  0.0,  // bottom-left  (v=0 — canvas top maps to geo south)
-  br[0], br[1],  1.0,  0.0,  // bottom-right
-  tr[0], tr[1],  1.0,  1.0,  // top-right    (v=1 — canvas bottom maps to geo north)
-  bl[0], bl[1],  0.0,  0.0,  // bottom-left
-  tr[0], tr[1],  1.0,  1.0,  // top-right
-  tl[0], tl[1],  0.0,  1.0,  // top-left
+  //  mercX     mercY      u         v
+  bl[0], bl[1],  uvBL[0], uvBL[1],  // bottom-left
+  br[0], br[1],  uvBR[0], uvBR[1],  // bottom-right
+  tr[0], tr[1],  uvTR[0], uvTR[1],  // top-right
+  bl[0], bl[1],  uvBL[0], uvBL[1],  // bottom-left
+  tr[0], tr[1],  uvTR[0], uvTR[1],  // top-right
+  tl[0], tl[1],  uvTL[0], uvTL[1],  // top-left
 ]);
 
 const revealLayer = {
