@@ -160,7 +160,7 @@ function geoToCanvas(lng, lat) {
   const [west, south, east, north] = IMG_BOUNDS;
   // Fraction across the geographic extent
   const fracX = (lng  - west)  / (east  - west);
-  const fracY = (north - lat)  / (north - south); // 0=north, 1=south
+  const fracY = (north - lat) / (north - south); // 0=north (canvas top), 1=south (canvas bottom)
   // Map to canvas pixels — canvas is CANVAS_SIZE x CANVAS_SIZE
   // PNG is drawn stretched to fill canvas, so fractions map directly
   const x = fracX * CANVAS_SIZE;
@@ -263,7 +263,7 @@ function lngLatToUV(lng, lat) {
   const u = (lng  - west)  / (east  - west);
   // WebGL v=0 is at bottom of texture, v=1 at top
   // lat=south → v=0 (texture bottom), lat=north → v=1 (texture top)
-  const v = (lat  - south) / (north - south);
+  const v = (north - lat) / (north - south); // north=v=0 matches canvas top=y=0
   return [u, v];
 }
 const uvBL = lngLatToUV(west,  south);
