@@ -965,12 +965,13 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   `;
   printEl.appendChild(footer);
 
-  // Temporarily attach to body hidden so html2pdf can measure it
+  // Attach to body visibly but covered by a loading overlay — html2pdf needs it in the DOM and visible to render
   printEl.style.position = "fixed";
   printEl.style.top = "0";
   printEl.style.left = "0";
-  printEl.style.visibility = "hidden";
-  printEl.style.zIndex = "-1";
+  printEl.style.width = "680px";
+  printEl.style.zIndex = "9999";
+  printEl.style.background = "#fff";
   document.body.appendChild(printEl);
 
   const opt = {
