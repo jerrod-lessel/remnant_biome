@@ -891,6 +891,8 @@ async function updateSidebarStatus(cfg, cachedData, cachedIdx) {
   statusEl.className = `sidebar-status-badge ${cssClass}`;
   statusTxt.textContent = label;
   valueEl.textContent   = formatValue(value, cfg);
+  const yearDisplay = document.getElementById("sidebar-year-display");
+  if (yearDisplay) yearDisplay.textContent = activeYear;
 }
 
 async function buildTrendSentence(cfg, ctx, cachedData, cachedIdx) {
