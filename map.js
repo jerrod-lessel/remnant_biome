@@ -967,7 +967,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   // html2pdf requires the element to be in the DOM with static positioning
   // Using a hidden wrapper div avoids position:fixed/absolute blank render bug
   const wrapper = document.createElement("div");
-  wrapper.style.cssText = "overflow:hidden;height:0;width:700px;position:static;";
+  wrapper.style.cssText = "position:absolute;top:0;left:0;width:700px;opacity:0;pointer-events:none;z-index:-9999;";
   wrapper.appendChild(printEl);
   document.body.appendChild(wrapper);
 
@@ -975,7 +975,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     margin:      [10, 10, 10, 10],
     filename:    `remnant-biome-report-${Date.now()}.pdf`,
     image:       { type: "jpeg", quality: 0.92 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false, windowWidth: 700 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
     jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
   };
 
