@@ -136,7 +136,7 @@ const map = new maplibregl.Map({
     }],
   },
   center: [-119.5, 37.5],
-  zoom: 5.2,
+  zoom: 5.0,
   minZoom: 4,
   maxZoom: 12,
   attributionControl: true,
@@ -395,7 +395,7 @@ map.on("load", async () => {
 document.getElementById("zoom-in").addEventListener("click",  () => map.zoomIn());
 document.getElementById("zoom-out").addEventListener("click", () => map.zoomOut());
 document.getElementById("home-btn").addEventListener("click", () =>
-  map.flyTo({ center: [-119.5, 37.5], zoom: 5.2, duration: 800 })
+  map.flyTo({ center: [-119.5, 37.5], zoom: 5.0, duration: 800 })
 );
 
 // ── PILLS ─────────────────────────────────────────────────────
@@ -533,7 +533,7 @@ function dismiss() {
   clearRevealMask();
   hideRasterLayer();
   closeSidebar();
-  map.flyTo({ center: [-119.5, 37.5], zoom: 5.2, duration: 800 });
+  map.flyTo({ center: [-119.5, 37.5], zoom: 5.0, duration: 800 });
 }
 
 // ── MAP CLICK ─────────────────────────────────────────────────
@@ -965,10 +965,12 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   `;
   printEl.appendChild(footer);
 
-  // Temporarily attach to body off-screen so html2pdf can measure it
-  printEl.style.position = "absolute";
-  printEl.style.left = "-9999px";
+  // Temporarily attach to body hidden so html2pdf can measure it
+  printEl.style.position = "fixed";
   printEl.style.top = "0";
+  printEl.style.left = "0";
+  printEl.style.visibility = "hidden";
+  printEl.style.zIndex = "-1";
   document.body.appendChild(printEl);
 
   const opt = {
