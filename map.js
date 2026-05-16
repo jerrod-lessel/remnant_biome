@@ -642,6 +642,10 @@ function showChartLoading() {
   if (timelineChart) { timelineChart.destroy(); timelineChart = null; }
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#4d7a96";
+  ctx.font      = "12px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Loading chart data...", canvas.width / 2, canvas.height / 2);
 }
 
 function showChartError() {
