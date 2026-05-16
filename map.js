@@ -136,7 +136,7 @@ const map = new maplibregl.Map({
     }],
   },
   center: [-119.5, 37.5],
-  zoom: 5.5,
+  zoom: 6,
   minZoom: 4,
   maxZoom: 12,
   attributionControl: true,
@@ -395,7 +395,7 @@ map.on("load", async () => {
 document.getElementById("zoom-in").addEventListener("click",  () => map.zoomIn());
 document.getElementById("zoom-out").addEventListener("click", () => map.zoomOut());
 document.getElementById("home-btn").addEventListener("click", () =>
-  map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 })
+  map.flyTo({ center: [-119.5, 37.5], zoom: 6, duration: 800 })
 );
 
 // ── PILLS ─────────────────────────────────────────────────────
@@ -488,17 +488,28 @@ function stopPlay() {
   if (playTimer) { clearInterval(playTimer); playTimer = null; }
 }
 
-// ── BASEMAP ───────────────────────────────────────────────────
+// ── BASEMAP TOGGLE ────────────────────────────────────────────
 
-document.querySelectorAll(".basemap-btn").forEach(btn => {
+document.getElementById("basemap-toggle").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("basemap-dropdown").classList.toggle("hidden");
+});
+
+document.querySelectorAll(".basemap-opt").forEach(btn => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".basemap-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".basemap-opt").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     activeBasemap = btn.dataset.basemap;
     if (map.getSource("basemap")) {
       map.getSource("basemap").setTiles([BASEMAP_TILES[activeBasemap]]);
     }
+    document.getElementById("basemap-dropdown").classList.add("hidden");
   });
+});
+
+// Close dropdown when clicking elsewhere
+document.addEventListener("click", () => {
+  document.getElementById("basemap-dropdown")?.classList.add("hidden");
 });
 
 // ── CLICK MARKER ──────────────────────────────────────────────
@@ -843,7 +854,112 @@ function closeSidebar() {
   }, { once: true });
 }
 
-async function updateSidebarContent(cachedData, cachedIdx) {
+// ── PDF EXPORT ────────────────────────────────────────────────
+
+document.getElementById("export-pdf-btn").addEventListener("click", function () {
+  const btn = this;
+  if (!clickedPoint || !metadata) return;
+
+  btn.disabled    = true;
+  btn.textContent = "Generating PDF...";
+
+  const cfg       = metadata.metrics[activeMetric];
+  const ctxData   = METRIC_CONTEXT[activeMetric];
+  const scenLabel = metadata.scenarios[activeScenario]?.label || activeScenario;
+  const generated = new Date().toLocaleString();
+
+  // Grab chart image if available
+  const chartCanvas  = document.getElementById("timeline-chart");
+  const chartImgSrc  = (timelineChart && chartCanvas)
+    ? chartCanvas.toDataURL("image/png")
+    : null;
+
+  // Get current status
+  let statusLabel = "";
+  let statusColor = "#7a9ab0";
+  const statusEl = document.getElementById("sidebar-status-badge");
+  const statusTxtEl = document.getElementById("sidebar-status-text");
+  if (statusTxtEl) statusLabel = statusTxtEl.textContent;
+  if (statusEl.classList.contains("status-green")) statusColor = "#16a34a";
+  if (statusEl.classList.contains("status-amber")) statusColor = "#d97706";
+  if (statusEl.classList.contains("status-red"))   statusColor = "#dc2626";
+
+  const currentValue = document.getElementById("sidebar-current-value")?.textContent || "";
+  const trendText    = document.getElementById("sidebar-trend")?.textContent || "";
+  const whatText     = ctxData?.what || "";
+  const riskText     = ctxData?.risk_note || "";
+
+  const printEl = document.createElement("div");
+  printEl.style.cssText = "font-family:Arial,sans-serif;color:#111;background:#fff;padding:24px;max-width:680px;";
+  printEl.innerHTML = `
+    <h1 style="margin:0 0 4px;font-size:18px;color:#0c1f2c;">Remnant Biome - Climate Viability Report</h1>
+    <p style="margin:0 0 2px;font-size:12px;color:#555;">${clickedPoint.lat.toFixed(4)}° N, ${Math.abs(clickedPoint.lng).toFixed(4)}° W</p>
+    <p style="margin:0 0 2px;font-size:11px;color:#888;">${cfg?.label || activeMetric} · ${scenLabel} · ${activeYear}</p>
+    <p style="margin:0 0 16px;font-size:11px;color:#888;">Generated: ${generated}</p>
+    <hr style="border:none;border-top:1px solid #ddd;margin-bottom:16px;">
+
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:12px;
+      border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+      <div style="padding:8px 18px;border-radius:20px;border:1px solid ${statusColor};
+        background:${statusColor}22;color:${statusColor};font-size:13px;font-weight:600;
+        white-space:nowrap;">${statusLabel}</div>
+      <div>
+        <div style="font-size:22px;font-weight:600;color:#0c1f2c;">${currentValue}</div>
+        <div style="font-size:11px;color:#7a9ab0;">in ${activeYear}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+      <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
+        letter-spacing:0.6px;margin-bottom:6px;">Projected Change</div>
+      <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${trendText}</p>
+    </div>
+
+    ${chartImgSrc ? `
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;">
+      <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
+        letter-spacing:0.6px;margin-bottom:8px;">1980-2100 Timeline</div>
+      <img src="${chartImgSrc}" style="width:100%;border-radius:4px;" />
+    </div>` : ""}
+
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+      <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
+        letter-spacing:0.6px;margin-bottom:6px;">What This Measures</div>
+      <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${whatText}</p>
+    </div>
+
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+      <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
+        letter-spacing:0.6px;margin-bottom:6px;">Why It Matters</div>
+      <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${riskText}</p>
+    </div>
+
+    <div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;
+      font-size:10px;color:#9ca3af;text-align:center;">
+      Remnant Biome · lesselgeospatial.com · Powered by LOCA2-Hybrid CA (CMIP6, 3km)
+    </div>
+    <div style="font-size:9px;color:#bbb;text-align:center;margin-top:4px;">
+      For informational and educational purposes only. Not intended for professional
+      agricultural, legal, or financial decision-making. No warranty on accuracy.
+    </div>
+  `;
+
+  const opt = {
+    margin:      [10, 10, 10, 10],
+    filename:    `remnant-biome-report-${Date.now()}.pdf`,
+    image:       { type: "jpeg", quality: 0.92 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+    jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
+  };
+
+  html2pdf().set(opt).from(printEl).save()
+    .finally(() => {
+      btn.disabled    = false;
+      btn.textContent = "\u2B07 Export PDF Report";
+    });
+});
+
+
   if (!clickedPoint || !metadata) return;
 
   const cfg     = metadata.metrics[activeMetric];
@@ -1005,10 +1121,9 @@ function hexToRgba(hex, alpha) {
 }
 
 // ── DEFICIT BADGE ─────────────────────────────────────────────
+// Removed - covered by interpretation sidebar status badge
 
-function checkDeficitBadge() {
-  document.getElementById("deficit-badge").classList.add("hidden");
-}
+function checkDeficitBadge() {}
 
 // ── ABOUT ─────────────────────────────────────────────────────
 
