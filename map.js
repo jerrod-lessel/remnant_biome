@@ -533,7 +533,7 @@ function dismiss() {
   clearRevealMask();
   hideRasterLayer();
   closeSidebar();
-  map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
+  map.flyTo({ center: [-119.5, 37.5], zoom: 6, duration: 800 });
 }
 
 // ── MAP CLICK ─────────────────────────────────────────────────
@@ -899,7 +899,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     <hr style="border:none;border-top:1px solid #ddd;margin-bottom:16px;">
 
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;padding:12px;
-      border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+      border:1px solid #ddd;border-radius:8px;background:#f9f9f9;page-break-inside:avoid;">
       <div style="padding:8px 18px;border-radius:20px;border:1px solid ${statusColor};
         background:${statusColor}22;color:${statusColor};font-size:13px;font-weight:600;
         white-space:nowrap;">${statusLabel}</div>
@@ -909,33 +909,33 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
       </div>
     </div>
 
-    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;page-break-inside:avoid;">
       <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
         letter-spacing:0.6px;margin-bottom:6px;">Projected Change</div>
       <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${trendText}</p>
     </div>
 
     ${chartImgSrc ? `
-    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;">
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;page-break-inside:avoid;">
       <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
         letter-spacing:0.6px;margin-bottom:8px;">1980-2100 Timeline</div>
       <img src="${chartImgSrc}" style="width:100%;border-radius:4px;" />
     </div>` : ""}
 
-    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;page-break-inside:avoid;">
       <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
         letter-spacing:0.6px;margin-bottom:6px;">What This Measures</div>
       <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${whatText}</p>
     </div>
 
-    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+    <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;page-break-inside:avoid;">
       <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;
         letter-spacing:0.6px;margin-bottom:6px;">Why It Matters</div>
       <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${riskText}</p>
     </div>
 
     <div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;
-      font-size:10px;color:#9ca3af;text-align:center;">
+      font-size:10px;color:#9ca3af;text-align:center;page-break-inside:avoid;">
       Remnant Biome · lesselgeospatial.com · Powered by LOCA2-Hybrid CA (CMIP6, 3km)
     </div>
     <div style="font-size:9px;color:#bbb;text-align:center;margin-top:4px;">
@@ -950,6 +950,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     image:       { type: "jpeg", quality: 0.92 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
     jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
+    pagebreak:   { mode: ["avoid-all", "css"] },
   };
 
   html2pdf().set(opt).from(printEl).save()
