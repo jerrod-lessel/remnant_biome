@@ -666,8 +666,8 @@ html, body {
 #sidebar-year-label {
   font-size: 10px;
   color: var(--panel-text-muted);
-  margin-top: 2px;
-  text-align: right;
+  margin-top: 4px;
+  text-align: center;
 }
 
 /* Section blocks */
