@@ -12,6 +12,7 @@
   <script src="https://unpkg.com/maplibre-gl@4.1.2/dist/maplibre-gl.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -46,13 +47,10 @@
           <button class="pill" data-metric="spotted_wing_drosophila_mortality">SWD</button>
         </div>
       </div>
-      <div id="deficit-badge" class="hidden">
-        <span id="deficit-text">⚠ chill deficit detected</span>
-      </div>
     </div>
   </div>
 
-  <!-- TOP RIGHT: SCENARIO + YEAR + BASEMAP -->
+  <!-- TOP RIGHT: SCENARIO + YEAR + BASEMAP TOGGLE -->
   <div id="scenario-year-panel">
     <div id="scenario-grid">
       <button class="scenario-btn" data-scenario="historical">
@@ -87,13 +85,22 @@
         <span>2100</span>
       </div>
     </div>
+
+    <!-- BASEMAP TOGGLE (layers icon, same as other projects) -->
     <div id="basemap-selector">
-      <div class="selector-label" style="margin-bottom:6px;">BASEMAP</div>
-      <div id="basemap-btns">
-        <button class="basemap-btn active" data-basemap="carto-light">Light</button>
-        <button class="basemap-btn" data-basemap="carto-dark">Dark</button>
-        <button class="basemap-btn" data-basemap="esri-satellite">Satellite</button>
-        <button class="basemap-btn" data-basemap="osm">Streets</button>
+      <button id="basemap-toggle" title="Switch basemap" aria-label="Switch basemap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        Basemap
+      </button>
+      <div id="basemap-dropdown" class="hidden">
+        <button class="basemap-opt active" data-basemap="carto-light">Light</button>
+        <button class="basemap-opt" data-basemap="carto-dark">Dark</button>
+        <button class="basemap-opt" data-basemap="esri-satellite">Satellite</button>
+        <button class="basemap-opt" data-basemap="osm">Streets</button>
       </div>
     </div>
   </div>
@@ -184,12 +191,12 @@
       <div id="sidebar-status-block">
         <div id="sidebar-status-left">
           <div class="sidebar-status-badge" id="sidebar-status-badge">
-            <span id="sidebar-status-text">–</span>
+            <span id="sidebar-status-text">-</span>
           </div>
           <div id="sidebar-year-label">in <span id="sidebar-year-display"></span></div>
         </div>
         <div id="sidebar-status-right">
-          <div id="sidebar-current-value">–</div>
+          <div id="sidebar-current-value">-</div>
           <div id="sidebar-category" class="sidebar-category-tag tag-crop">Crop</div>
         </div>
       </div>
@@ -199,7 +206,7 @@
       <!-- Projected change -->
       <div class="sidebar-section">
         <div class="sidebar-section-label">Projected change</div>
-        <div class="sidebar-section-text" id="sidebar-trend">–</div>
+        <div class="sidebar-section-text" id="sidebar-trend">-</div>
       </div>
 
       <div class="sidebar-divider"></div>
@@ -207,7 +214,7 @@
       <!-- What this measures -->
       <div class="sidebar-section">
         <div class="sidebar-section-label">What this measures</div>
-        <div class="sidebar-section-text" id="sidebar-what">–</div>
+        <div class="sidebar-section-text" id="sidebar-what">-</div>
       </div>
 
       <div class="sidebar-divider"></div>
@@ -215,10 +222,24 @@
       <!-- Why it matters -->
       <div class="sidebar-section">
         <div class="sidebar-section-label">Why it matters</div>
-        <div class="sidebar-section-text" id="sidebar-risk">–</div>
+        <div class="sidebar-section-text" id="sidebar-risk">-</div>
       </div>
 
     </div><!-- /sidebar-body -->
+
+    <!-- Footer actions (export + donate) -->
+    <div id="sidebar-footer-actions">
+      <button id="export-pdf-btn">&#x2B07; Export PDF Report</button>
+      <div id="donation-card">
+        <span class="donation-text">&#x2615; This tool is free &mdash; <a href="https://ko-fi.com/jerrodlessel" target="_blank" rel="noopener">support its development</a></span>
+      </div>
+    </div>
+
+    <!-- Footer branding -->
+    <div id="sidebar-footer">
+      <span>Remnant Biome</span>
+      <a href="https://www.lesselgeospatial.com" target="_blank" rel="noopener">lesselgeospatial.com</a>
+    </div>
 
   </div><!-- /interpret-sidebar -->
 
