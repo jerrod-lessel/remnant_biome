@@ -136,7 +136,7 @@ const map = new maplibregl.Map({
     }],
   },
   center: [-119.5, 37.5],
-  zoom: 6,
+  zoom: 5.5,
   minZoom: 4,
   maxZoom: 12,
   attributionControl: true,
@@ -395,7 +395,7 @@ map.on("load", async () => {
 document.getElementById("zoom-in").addEventListener("click",  () => map.zoomIn());
 document.getElementById("zoom-out").addEventListener("click", () => map.zoomOut());
 document.getElementById("home-btn").addEventListener("click", () =>
-  map.flyTo({ center: [-119.5, 37.5], zoom: 6, duration: 800 })
+  map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 })
 );
 
 // ── PILLS ─────────────────────────────────────────────────────
@@ -533,7 +533,7 @@ function dismiss() {
   clearRevealMask();
   hideRasterLayer();
   closeSidebar();
-  map.flyTo({ center: [-119.5, 37.5], zoom: 6, duration: 800 });
+  map.flyTo({ center: [-119.5, 37.5], zoom: 5.5, duration: 800 });
 }
 
 // ── MAP CLICK ─────────────────────────────────────────────────
@@ -949,8 +949,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     filename:    `remnant-biome-report-${Date.now()}.pdf`,
     image:       { type: "jpeg", quality: 0.92 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-    jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak:   { mode: ["avoid-all", "css"] },
+    jsPDF:       { unit: "mm", format: [210, 450], orientation: "portrait" },
   };
 
   html2pdf().set(opt).from(printEl).save()
