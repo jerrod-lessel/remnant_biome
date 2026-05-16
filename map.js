@@ -959,7 +959,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     });
 });
 
-
+async function updateSidebarContent(cachedData, cachedIdx) {
   if (!clickedPoint || !metadata) return;
 
   const cfg     = metadata.metrics[activeMetric];
