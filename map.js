@@ -890,7 +890,6 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   // Build print DOM — real elements, not innerHTML strings, so html2pdf renders fully
   const printEl = document.createElement("div");
   printEl.style.cssText = "font-family:Arial,sans-serif;color:#111;background:#fff;padding:24px;max-width:660px;";
-
   function section(labelText, contentEl) {
     const wrap = document.createElement("div");
     wrap.style.cssText = "margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;";
@@ -965,26 +964,24 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   `;
   printEl.appendChild(footer);
 
-  // Attach to body visibly but covered by a loading overlay — html2pdf needs it in the DOM and visible to render
-  printEl.style.position = "fixed";
-  printEl.style.top = "0";
-  printEl.style.left = "0";
-  printEl.style.width = "680px";
-  printEl.style.zIndex = "9999";
-  printEl.style.background = "#fff";
-  document.body.appendChild(printEl);
+  // html2pdf requires the element to be in the DOM with static positioning
+  // Using a hidden wrapper div avoids position:fixed/absolute blank render bug
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "overflow:hidden;height:0;width:680px;";
+  wrapper.appendChild(printEl);
+  document.body.appendChild(wrapper);
 
   const opt = {
     margin:      [10, 10, 10, 10],
     filename:    `remnant-biome-report-${Date.now()}.pdf`,
     image:       { type: "jpeg", quality: 0.92 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", logging: false },
-    jsPDF:       { unit: "mm", format: [210, 450], orientation: "portrait" },
+    html2canvas: { scale: 1, useCORS: true, backgroundColor: "#ffffff", logging: false },
+    jsPDF:       { unit: "mm", format: "a4", orientation: "portrait" },
   };
 
   html2pdf().set(opt).from(printEl).save()
     .finally(() => {
-      document.body.removeChild(printEl);
+      document.body.removeChild(wrapper);
       btn.disabled    = false;
       btn.textContent = "\u2B07 Export PDF Report";
     });
