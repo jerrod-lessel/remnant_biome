@@ -971,7 +971,7 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     filename:    `remnant-biome-report-${Date.now()}.pdf`,
     image:       { type: "jpeg", quality: 0.92 },
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
-    jsPDF:       { unit: "mm", format: [210, 500], orientation: "portrait" },
+    jsPDF:       { unit: "mm", format: "letter", orientation: "portrait" },
   };
 
   html2pdf().set(opt).from(printEl).save()
