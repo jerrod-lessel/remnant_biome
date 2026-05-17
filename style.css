@@ -179,42 +179,39 @@ html, body {
   margin: 2px 0;
 }
 
-/* Basemap toggle button */
-#basemap-selector {
-  position: relative;
+/* Standalone basemap widget (top right, matches Spectral Glimpse) */
+#basemap-widget {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 901;
 }
 
 #basemap-toggle {
+  width: 36px;
+  height: 36px;
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-border);
+  border-radius: 8px;
+  color: var(--ctrl-text);
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
-  padding: 7px 10px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  color: var(--panel-text-muted);
-  font-size: 11px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  justify-content: center;
+  backdrop-filter: blur(8px);
+  transition: background 0.15s, color 0.15s;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.5);
 }
 
 #basemap-toggle:hover {
-  background: rgba(62,207,207,0.08);
-  border-color: rgba(62,207,207,0.25);
-  color: var(--panel-text);
-}
-
-#basemap-toggle svg {
-  flex-shrink: 0;
-  opacity: 0.6;
+  background: var(--ctrl-hover);
+  color: var(--panel-accent);
 }
 
 /* Basemap dropdown */
 #basemap-dropdown {
   position: absolute;
-  bottom: calc(100% + 6px);
+  top: calc(100% + 6px);
   right: 0;
   background: var(--card-bg);
   border: 1px solid var(--card-border);
@@ -321,7 +318,7 @@ html, body {
 
 #scenario-year-panel {
   position: fixed;
-  top: 14px;
+  top: 58px;
   right: 14px;
   z-index: 900;
   background: var(--card-bg);
