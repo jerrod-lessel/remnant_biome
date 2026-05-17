@@ -967,11 +967,12 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   // html2pdf requires the element to be in the DOM with static positioning
   // Using a hidden wrapper div avoids position:fixed/absolute blank render bug
   const opt = {
-    margin:      [10, 10, 10, 10],
+    margin:      [15, 15, 15, 15],
     filename:    `remnant-biome-report-${Date.now()}.pdf`,
-    image:       { type: "jpeg", quality: 0.92 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
+    image:       { type: "jpeg", quality: 0.95 },
+    html2canvas: { scale: 1.5, useCORS: true, backgroundColor: "#ffffff", scrollY: 0 },
     jsPDF:       { unit: "mm", format: "letter", orientation: "portrait" },
+    pagebreak:   { mode: "avoid-all" },
   };
 
   html2pdf().set(opt).from(printEl).save()
