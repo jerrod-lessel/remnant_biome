@@ -978,12 +978,19 @@ html, body {
   font-weight: 500;
   color: var(--panel-text-muted);
   flex: 1;
+  display: none;
 }
 
 #disclaimer-chevron {
   font-size: 0.7rem;
   color: var(--panel-text-label);
   transition: transform 0.2s;
+  display: none;
+}
+
+#disclaimer-card.open #disclaimer-label,
+#disclaimer-card.open #disclaimer-chevron {
+  display: inline;
 }
 
 #disclaimer-card.open #disclaimer-chevron {
