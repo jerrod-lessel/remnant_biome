@@ -52,9 +52,11 @@
     </div>
   </div>
 
-  <!-- TOP RIGHT: SCENARIO + YEAR -->
-  <div id="scenario-year-panel">
-    <div id="scenario-grid">
+  <!-- TOP RIGHT: SCENARIO + YEAR + BASEMAP BELOW -->
+  <div id="right-column">
+
+    <div id="scenario-year-panel">
+      <div id="scenario-grid">
       <button class="scenario-btn" data-scenario="historical">
         <span class="scenario-label">Historical</span>
         <span class="scenario-code">1980–2014</span>
@@ -86,25 +88,26 @@
         <span>2060</span>
         <span>2100</span>
       </div>
-    </div>
-  </div>
+    </div><!-- /scenario-year-panel -->
 
-  <!-- TOP RIGHT: STANDALONE BASEMAP BUTTON (matches Spectral Glimpse) -->
-  <div id="basemap-widget">
-    <button id="basemap-toggle" title="Switch basemap" aria-label="Switch basemap">
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-        <polyline points="2 17 12 22 22 17"></polyline>
-        <polyline points="2 12 12 17 22 12"></polyline>
-      </svg>
-    </button>
-    <div id="basemap-dropdown" class="hidden">
-      <button class="basemap-opt active" data-basemap="carto-light">Light</button>
-      <button class="basemap-opt" data-basemap="carto-dark">Dark</button>
-      <button class="basemap-opt" data-basemap="esri-satellite">Satellite</button>
-      <button class="basemap-opt" data-basemap="osm">Streets</button>
+    <!-- BASEMAP BUTTON — standalone square below scenario panel -->
+    <div id="basemap-widget">
+      <button id="basemap-toggle" title="Switch basemap" aria-label="Switch basemap">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+      </button>
+      <div id="basemap-dropdown" class="hidden">
+        <button class="basemap-opt active" data-basemap="carto-light">Light</button>
+        <button class="basemap-opt" data-basemap="carto-dark">Dark</button>
+        <button class="basemap-opt" data-basemap="esri-satellite">Satellite</button>
+        <button class="basemap-opt" data-basemap="osm">Streets</button>
+      </div>
     </div>
-  </div>
+
+  </div><!-- /right-column -->
 
   <!-- BOTTOM CENTER: TIMELINE PANEL -->
   <div id="timeline-panel" class="hidden">
