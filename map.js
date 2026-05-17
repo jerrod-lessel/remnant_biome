@@ -934,7 +934,13 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
   // Projected change
   printEl.appendChild(section("Projected Change", para(trendText)));
 
-  // Chart image
+  // What this measures
+  printEl.appendChild(section("What This Measures", para(whatText)));
+
+  // Why it matters
+  printEl.appendChild(section("Why It Matters", para(riskText)));
+
+  // Chart image (at the bottom so text sections always appear first)
   if (chartImgSrc) {
     const chartWrap = document.createElement("div");
     chartWrap.style.cssText = "margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;";
@@ -948,12 +954,6 @@ document.getElementById("export-pdf-btn").addEventListener("click", function () 
     chartWrap.appendChild(chartImg);
     printEl.appendChild(chartWrap);
   }
-
-  // What this measures
-  printEl.appendChild(section("What This Measures", para(whatText)));
-
-  // Why it matters
-  printEl.appendChild(section("Why It Matters", para(riskText)));
 
   // Footer
   const footer = document.createElement("div");
