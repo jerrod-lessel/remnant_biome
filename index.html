@@ -55,43 +55,68 @@
   <!-- TOP RIGHT: SCENARIO + YEAR + BASEMAP BELOW -->
   <div id="right-column">
 
-    <div id="scenario-year-panel">
-      <div id="scenario-grid">
-      <button class="scenario-btn" data-scenario="historical">
-        <span class="scenario-label">Historical</span>
-        <span class="scenario-code">1980–2014</span>
-      </button>
-      <button class="scenario-btn active" data-scenario="ssp245">
-        <span class="scenario-label">Current Policy</span>
-        <span class="scenario-code">SSP2-4.5</span>
-      </button>
-      <button class="scenario-btn" data-scenario="ssp370">
-        <span class="scenario-label">High Emissions</span>
-        <span class="scenario-code">SSP3-7.0</span>
-      </button>
-      <button class="scenario-btn" data-scenario="ssp585">
-        <span class="scenario-label">Worst Case</span>
-        <span class="scenario-code">SSP5-8.5</span>
-      </button>
-    </div>
-    <div id="year-scrubber">
-      <div id="year-display">
-        <span id="year-label">2045</span>
+    <!-- Mobile-only metric selector (shown on mobile, hidden on desktop via CSS) -->
+    <div id="selector-panel-mobile">
+      <div class="selector-label">CROPS</div>
+      <div class="pill-row">
+        <button class="pill active" data-metric="almonds_chill_hours">Almonds</button>
+        <button class="pill" data-metric="wine_grapes_chill_hours">Wine Grapes: Chill</button>
+        <button class="pill" data-metric="wine_grapes_gdd">Wine Grapes: GDD</button>
+        <button class="pill" data-metric="navel_orange_frost_days">Navel Orange</button>
+        <button class="pill" data-metric="avocado_hard_freeze_days">Avocado</button>
       </div>
-      <div id="scrubber-row">
-        <button id="play-btn" title="Animate through years" aria-label="Play">&#9654;</button>
-        <input type="range" id="year-slider" min="1980" max="2100" value="2045" step="1" />
-      </div>
-      <div id="scrubber-labels">
-        <span>1980</span>
-        <span>2015</span>
-        <span>2060</span>
-        <span>2100</span>
+      <div class="selector-divider"></div>
+      <div class="selector-label">PESTS</div>
+      <div class="pill-row">
+        <button class="pill" data-metric="navel_orangeworm_dd">Orangeworm</button>
+        <button class="pill" data-metric="vine_mealybug_development_days">Vine Mealybug</button>
+        <button class="pill" data-metric="spotted_wing_drosophila_mortality">SWD</button>
       </div>
     </div>
-  </div><!-- /scenario-year-panel -->
 
-    <!-- BASEMAP BUTTON — standalone square below scenario panel -->
+    <div id="scenario-year-panel">
+      <!-- Mobile collapse toggle (hidden on desktop) -->
+      <button id="scenario-collapse-btn">
+        Scenario &amp; Year <span id="scenario-chevron">&#x25BE;</span>
+      </button>
+      <div id="scenario-collapsible">
+        <div id="scenario-grid">
+          <button class="scenario-btn" data-scenario="historical">
+            <span class="scenario-label">Historical</span>
+            <span class="scenario-code">1980–2014</span>
+          </button>
+          <button class="scenario-btn active" data-scenario="ssp245">
+            <span class="scenario-label">Current Policy</span>
+            <span class="scenario-code">SSP2-4.5</span>
+          </button>
+          <button class="scenario-btn" data-scenario="ssp370">
+            <span class="scenario-label">High Emissions</span>
+            <span class="scenario-code">SSP3-7.0</span>
+          </button>
+          <button class="scenario-btn" data-scenario="ssp585">
+            <span class="scenario-label">Worst Case</span>
+            <span class="scenario-code">SSP5-8.5</span>
+          </button>
+        </div>
+        <div id="year-scrubber">
+          <div id="year-display">
+            <span id="year-label">2045</span>
+          </div>
+          <div id="scrubber-row">
+            <button id="play-btn" title="Animate through years" aria-label="Play">&#9654;</button>
+            <input type="range" id="year-slider" min="1980" max="2100" value="2045" step="1" />
+          </div>
+          <div id="scrubber-labels">
+            <span>1980</span>
+            <span>2015</span>
+            <span>2060</span>
+            <span>2100</span>
+          </div>
+        </div>
+      </div><!-- /scenario-collapsible -->
+    </div><!-- /scenario-year-panel -->
+
+    <!-- BASEMAP BUTTON -->
     <div id="basemap-widget">
       <button id="basemap-toggle" title="Switch basemap" aria-label="Switch basemap">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -157,7 +182,8 @@
         uncertainty band shown in timeline chart.
       </p>
       <p>
-        Built and maintained by Jerrod Lessel, against all reasonable advice.
+        Built by Jerrod Lessel, Senior GIS Analyst at Caltrans.
+        <a href="https://lesselgeospatial.com" target="_blank" rel="noopener">lesselgeospatial.com</a>
       </p>
       <div id="disclaimer-toggle">
         <span id="disclaimer-icon">&#x2696;</span>
