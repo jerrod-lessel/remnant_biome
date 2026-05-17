@@ -179,8 +179,9 @@ html, body {
   margin: 2px 0;
 }
 
-/* Right column — holds scenario panel + basemap button stacked vertically */
-#right-column {
+/* Hide mobile-only elements on desktop */
+#selector-panel-mobile { display: none; }
+#scenario-collapse-btn  { display: none; }
   position: fixed;
   top: 14px;
   right: 14px;
@@ -1076,68 +1077,100 @@ html, body {
 
 @media (max-width: 600px) {
 
-  /* Zoom controls stay vertical, shift left */
+  /* Zoom controls stay top left, vertical as normal */
   #top-left-wrap {
     top: 10px;
     left: 10px;
-    flex-direction: row;
-    align-items: flex-start;
     gap: 8px;
   }
 
-  #zoom-controls {
-    flex-direction: column;
-    gap: 4px;
-    flex-shrink: 0;
-  }
-
-  /* Selector panel gets more room */
+  /* Hide selector panel from top left on mobile */
   #selector-panel {
-    width: calc(100vw - 120px);
-    max-width: calc(100vw - 120px);
-    padding: 8px 10px;
+    display: none;
   }
 
-  .pill-row {
+  /* Right column stacks everything vertically */
+  #right-column {
+    top: 10px;
+    right: 10px;
+    max-width: calc(100vw - 70px);
+    gap: 6px;
+  }
+
+  /* Selector panel moves into right column on mobile via JS class */
+  #selector-panel-mobile {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--panel-radius);
+    backdrop-filter: blur(12px);
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+
+  #selector-panel-mobile .pill-row {
     flex-wrap: wrap;
     gap: 4px;
   }
 
-  .pill {
+  #selector-panel-mobile .pill {
     font-size: 10px;
     padding: 3px 8px;
   }
 
-  /* Right column — top right, narrower */
-  #right-column {
-    top: 10px;
-    right: 10px;
-    max-width: 170px;
+  #selector-panel-mobile .selector-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--panel-text-label);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
+  /* Scenario panel collapsible on mobile */
   #scenario-year-panel {
     min-width: 0;
-    width: 170px;
+    width: 100%;
     padding: 8px;
     gap: 6px;
   }
 
-  #scenario-grid { gap: 4px; }
+  #scenario-collapse-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    color: var(--panel-text-muted);
+    font-size: 10px;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0 0 4px;
+    border-bottom: 1px solid var(--panel-border);
+    margin-bottom: 4px;
+  }
 
+  #scenario-collapse-btn span { color: var(--panel-text-label); }
+
+  #scenario-collapsible.collapsed {
+    display: none;
+  }
+
+  #scenario-grid { gap: 4px; }
   .scenario-btn  { padding: 4px 2px; }
   .scenario-label { font-size: 8px; line-height: 1.2; }
   .scenario-code  { font-size: 7px; }
   #year-label     { font-size: 16px; }
   #scrubber-labels { font-size: 7px; }
 
-  /* Click hint — multiline box instead of single pill */
+  /* Click hint multiline */
   #click-hint {
     bottom: 100px;
-    left: 50%;
-    transform: translateX(-50%);
     white-space: normal;
     text-align: center;
-    max-width: 200px;
+    max-width: 180px;
     border-radius: 10px;
     padding: 8px 14px;
     line-height: 1.4;
