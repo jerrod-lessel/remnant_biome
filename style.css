@@ -1076,40 +1076,52 @@ html, body {
 
 @media (max-width: 600px) {
 
-  /* Stack top-left and top-right panels vertically, full width */
+  /* Metric selector — top left, narrower */
   #top-left-wrap {
     top: 10px;
     left: 10px;
-    right: 10px;
-    flex-direction: column;
-    gap: 6px;
+    max-width: 52vw;
   }
 
-  /* Zoom controls go horizontal on mobile */
   #zoom-controls {
     flex-direction: row;
+    gap: 4px;
   }
 
   #selector-panel {
-    width: calc(100vw - 60px);
-    max-width: calc(100vw - 60px);
+    max-width: 48vw;
+    width: fit-content;
   }
 
-  /* Right column stacks below, full width minus margin */
+  .pill {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  /* Right column — top right, narrower */
   #right-column {
-    top: auto;
-    bottom: 160px;
+    top: 10px;
     right: 10px;
-    align-items: flex-end;
+    max-width: 44vw;
   }
 
   #scenario-year-panel {
     min-width: 0;
-    width: calc(100vw - 80px);
-    max-width: 320px;
+    width: 44vw;
+    padding: 8px;
+    gap: 8px;
   }
 
-  /* Timeline panel full width, higher up to avoid title card */
+  .scenario-btn {
+    padding: 5px 4px;
+  }
+
+  .scenario-label { font-size: 9px; }
+  .scenario-code  { font-size: 8px; }
+
+  #year-label { font-size: 18px; }
+
+  /* Timeline panel full width */
   #timeline-panel {
     bottom: 70px;
     width: calc(100vw - 20px);
@@ -1117,17 +1129,20 @@ html, body {
     transform: none;
   }
 
-  /* Title card shorter on mobile */
+  /* Title card — constrained so it doesn't overlap click hint */
   #bottom-left-column {
-    max-width: calc(100vw - 20px);
     bottom: 14px;
     left: 10px;
+    max-width: calc(55vw);
   }
 
-  /* Hide legend on mobile — too crowded */
+  #title-name     { font-size: 0.82rem; }
+  #title-tagline  { font-size: 0.62rem; }
+
+  /* Hide legend on mobile */
   #legend { display: none; }
 
-  /* Sidebar slides up from bottom on mobile */
+  /* Sidebar slides up from bottom */
   #interpret-sidebar {
     width: 100vw;
     border-left: none;
