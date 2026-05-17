@@ -856,130 +856,117 @@ function closeSidebar() {
 
 // ── PDF EXPORT ────────────────────────────────────────────────
 
-document.getElementById("export-pdf-btn").addEventListener("click", function () {
+document.getElementById("export-pdf-btn").addEventListener("click", async function () {
   const btn = this;
   if (!clickedPoint || !metadata) return;
 
   btn.disabled    = true;
   btn.textContent = "Generating PDF...";
 
-  const cfg       = metadata.metrics[activeMetric];
-  const ctxData   = METRIC_CONTEXT[activeMetric];
-  const scenLabel = metadata.scenarios[activeScenario]?.label || activeScenario;
-  const generated = new Date().toLocaleString();
+  try {
+    const cfg       = metadata.metrics[activeMetric];
+    const ctxData   = METRIC_CONTEXT[activeMetric];
+    const scenLabel = metadata.scenarios[activeScenario]?.label || activeScenario;
+    const generated = new Date().toLocaleString();
 
-  // Grab chart image before building print element
-  const chartCanvas = document.getElementById("timeline-chart");
-  const chartImgSrc = (timelineChart && chartCanvas)
-    ? chartCanvas.toDataURL("image/png")
-    : null;
+    const chartCanvas = document.getElementById("timeline-chart");
+    const chartImgSrc = (timelineChart && chartCanvas)
+      ? chartCanvas.toDataURL("image/png")
+      : null;
 
-  // Get current status info from sidebar
-  const statusTxt   = document.getElementById("sidebar-status-text")?.textContent || "";
-  const currentVal  = document.getElementById("sidebar-current-value")?.textContent || "";
-  const trendText   = document.getElementById("sidebar-trend")?.textContent || "";
-  const whatText    = ctxData?.what || "";
-  const riskText    = ctxData?.risk_note || "";
+    const statusTxt  = document.getElementById("sidebar-status-text")?.textContent || "";
+    const currentVal = document.getElementById("sidebar-current-value")?.textContent || "";
+    const trendText  = document.getElementById("sidebar-trend")?.textContent || "";
+    const whatText   = ctxData?.what || "";
+    const riskText   = ctxData?.risk_note || "";
 
-  const statusEl    = document.getElementById("sidebar-status-badge");
-  let statusColor   = "#7a9ab0";
-  if (statusEl?.classList.contains("status-green")) statusColor = "#16a34a";
-  if (statusEl?.classList.contains("status-amber")) statusColor = "#d97706";
-  if (statusEl?.classList.contains("status-red"))   statusColor = "#dc2626";
+    const statusEl  = document.getElementById("sidebar-status-badge");
+    let statusColor = "#7a9ab0";
+    if (statusEl?.classList.contains("status-green")) statusColor = "#16a34a";
+    if (statusEl?.classList.contains("status-amber")) statusColor = "#d97706";
+    if (statusEl?.classList.contains("status-red"))   statusColor = "#dc2626";
 
-  // Build print DOM — real elements, not innerHTML strings, so html2pdf renders fully
-  const printEl = document.createElement("div");
-  printEl.style.cssText = "font-family:Arial,sans-serif;color:#111;background:#fff;padding:24px;max-width:660px;";
-  function section(labelText, contentEl) {
-    const wrap = document.createElement("div");
-    wrap.style.cssText = "margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;";
-    const label = document.createElement("div");
-    label.style.cssText = "font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;";
-    label.textContent = labelText;
-    wrap.appendChild(label);
-    wrap.appendChild(contentEl);
-    return wrap;
-  }
+    // Build the print element with fixed width for consistent rendering
+    const printEl = document.createElement("div");
+    printEl.style.cssText = "width:680px;font-family:Arial,sans-serif;color:#111;background:#fff;padding:24px;box-sizing:border-box;";
+    printEl.innerHTML = `
+      <h1 style="margin:0 0 4px;font-size:18px;color:#0c1f2c;">Remnant Biome - Climate Viability Report</h1>
+      <p style="margin:0 0 2px;font-size:12px;color:#555;">${clickedPoint.lat.toFixed(4)}° N, ${Math.abs(clickedPoint.lng).toFixed(4)}° W</p>
+      <p style="margin:0 0 2px;font-size:11px;color:#888;">${cfg?.label || activeMetric} &middot; ${scenLabel} &middot; ${activeYear}</p>
+      <p style="margin:0 0 16px;font-size:11px;color:#888;">Generated: ${generated}</p>
+      <hr style="border:none;border-top:1px solid #ddd;margin-bottom:16px;">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+        <div style="padding:6px 16px;border-radius:20px;border:1px solid ${statusColor};background:${statusColor}22;color:${statusColor};font-size:13px;font-weight:600;">${statusTxt}</div>
+        <div>
+          <div style="font-size:22px;font-weight:600;color:#0c1f2c;">${currentVal}</div>
+          <div style="font-size:11px;color:#7a9ab0;">in ${activeYear}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+        <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">Projected Change</div>
+        <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${trendText}</p>
+      </div>
+      <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+        <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">What This Measures</div>
+        <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${whatText}</p>
+      </div>
+      <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;">
+        <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">Why It Matters</div>
+        <p style="font-size:12px;color:#334155;margin:0;line-height:1.6;">${riskText}</p>
+      </div>
+      ${chartImgSrc ? `
+      <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;">
+        <div style="font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">1980-2100 Timeline</div>
+        <img src="${chartImgSrc}" style="width:100%;border-radius:4px;display:block;" />
+      </div>` : ""}
+      <div style="margin-top:20px;padding-top:12px;border-top:1px solid #ddd;text-align:center;">
+        <div style="font-size:10px;color:#9ca3af;">Remnant Biome &middot; lesselgeospatial.com &middot; Powered by LOCA2-Hybrid CA (CMIP6, 3km)</div>
+        <div style="font-size:9px;color:#bbb;margin-top:4px;">For informational and educational purposes only. Not intended for professional agricultural, legal, or financial decision-making.</div>
+      </div>
+    `;
 
-  function para(text) {
-    const p = document.createElement("p");
-    p.style.cssText = "font-size:12px;color:#334155;margin:0;line-height:1.6;";
-    p.textContent = text;
-    return p;
-  }
+    // Attach to body so html2canvas can measure real dimensions
+    document.body.appendChild(printEl);
 
-  // Header
-  const header = document.createElement("div");
-  header.innerHTML = `
-    <h1 style="margin:0 0 4px;font-size:18px;color:#0c1f2c;">Remnant Biome - Climate Viability Report</h1>
-    <p style="margin:0 0 2px;font-size:12px;color:#555;">${clickedPoint.lat.toFixed(4)}° N, ${Math.abs(clickedPoint.lng).toFixed(4)}° W</p>
-    <p style="margin:0 0 2px;font-size:11px;color:#888;">${cfg?.label || activeMetric} &middot; ${scenLabel} &middot; ${activeYear}</p>
-    <p style="margin:0 0 16px;font-size:11px;color:#888;">Generated: ${generated}</p>
-    <hr style="border:none;border-top:1px solid #ddd;margin-bottom:16px;">
-  `;
-  printEl.appendChild(header);
-
-  // Status block
-  const statusBlock = document.createElement("div");
-  statusBlock.style.cssText = "display:flex;align-items:center;gap:16px;margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;background:#f9f9f9;";
-  statusBlock.innerHTML = `
-    <div style="padding:6px 16px;border-radius:20px;border:1px solid ${statusColor};background:${statusColor}22;color:${statusColor};font-size:13px;font-weight:600;">${statusTxt}</div>
-    <div>
-      <div style="font-size:22px;font-weight:600;color:#0c1f2c;">${currentVal}</div>
-      <div style="font-size:11px;color:#7a9ab0;">in ${activeYear}</div>
-    </div>
-  `;
-  printEl.appendChild(statusBlock);
-
-  // Projected change
-  printEl.appendChild(section("Projected Change", para(trendText)));
-
-  // What this measures
-  printEl.appendChild(section("What This Measures", para(whatText)));
-
-  // Why it matters
-  printEl.appendChild(section("Why It Matters", para(riskText)));
-
-  // Chart image (at the bottom so text sections always appear first)
-  if (chartImgSrc) {
-    const chartWrap = document.createElement("div");
-    chartWrap.style.cssText = "margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:8px;";
-    const chartLabel = document.createElement("div");
-    chartLabel.style.cssText = "font-size:10px;font-weight:600;color:#6a8fa8;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;";
-    chartLabel.textContent = "1980-2100 Timeline";
-    const chartImg = document.createElement("img");
-    chartImg.src = chartImgSrc;
-    chartImg.style.cssText = "width:100%;border-radius:4px;display:block;";
-    chartWrap.appendChild(chartLabel);
-    chartWrap.appendChild(chartImg);
-    printEl.appendChild(chartWrap);
-  }
-
-  // Footer
-  const footer = document.createElement("div");
-  footer.style.cssText = "margin-top:20px;padding-top:12px;border-top:1px solid #ddd;text-align:center;";
-  footer.innerHTML = `
-    <div style="font-size:10px;color:#9ca3af;">Remnant Biome &middot; lesselgeospatial.com &middot; Powered by LOCA2-Hybrid CA (CMIP6, 3km)</div>
-    <div style="font-size:9px;color:#bbb;margin-top:4px;">For informational and educational purposes only. Not intended for professional agricultural, legal, or financial decision-making. No warranty on accuracy.</div>
-  `;
-  printEl.appendChild(footer);
-
-  // html2pdf requires the element to be in the DOM with static positioning
-  // Using a hidden wrapper div avoids position:fixed/absolute blank render bug
-  const opt = {
-    margin:      [15, 15, 15, 15],
-    filename:    `remnant-biome-report-${Date.now()}.pdf`,
-    image:       { type: "jpeg", quality: 0.95 },
-    html2canvas: { scale: 1.5, useCORS: true, backgroundColor: "#ffffff", scrollY: 0 },
-    jsPDF:       { unit: "mm", format: "letter", orientation: "portrait" },
-    pagebreak:   { mode: "avoid-all" },
-  };
-
-  html2pdf().set(opt).from(printEl).save()
-    .finally(() => {
-      btn.disabled    = false;
-      btn.textContent = "\u2B07 Export PDF Report";
+    // Render to canvas
+    const canvas = await html2canvas(printEl, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: 680,
+      height: printEl.scrollHeight,
     });
+
+    document.body.removeChild(printEl);
+
+    // Build PDF using jsPDF with manual multi-page slicing
+    const imgData  = canvas.toDataURL("image/jpeg", 0.92);
+    const doc      = new window.jspdf.jsPDF("p", "mm", "letter");
+    const pageW    = doc.internal.pageSize.getWidth();
+    const pageH    = doc.internal.pageSize.getHeight();
+    const margin   = 10;
+    const printW   = pageW - margin * 2;
+    const printH   = (canvas.height * printW) / canvas.width;
+
+    let remaining  = printH;
+    let yOffset    = 0;
+
+    while (remaining > 0) {
+      doc.addImage(imgData, "JPEG", margin, margin - yOffset, printW, printH);
+      remaining -= (pageH - margin * 2);
+      yOffset   += (pageH - margin * 2);
+      if (remaining > 0) doc.addPage();
+    }
+
+    doc.save(`remnant-biome-report-${Date.now()}.pdf`);
+
+  } catch (err) {
+    console.error("PDF export error:", err);
+  } finally {
+    btn.disabled    = false;
+    btn.textContent = "\u2B07 Export PDF Report";
+  }
 });
 
 async function updateSidebarContent(cachedData, cachedIdx) {
