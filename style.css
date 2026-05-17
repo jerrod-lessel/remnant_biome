@@ -1076,11 +1076,11 @@ html, body {
 
 @media (max-width: 600px) {
 
-  /* Metric selector — top left, narrower */
+  /* Metric selector — top left, fixed narrow width */
   #top-left-wrap {
     top: 10px;
     left: 10px;
-    max-width: 52vw;
+    max-width: 48vw;
   }
 
   #zoom-controls {
@@ -1089,37 +1089,64 @@ html, body {
   }
 
   #selector-panel {
-    max-width: 48vw;
-    width: fit-content;
+    max-width: 46vw;
+    width: 46vw;
+    padding: 8px 10px;
   }
+
+  /* Pills scroll horizontally instead of wrapping */
+  .pill-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .pill-row::-webkit-scrollbar { display: none; }
 
   .pill {
     font-size: 10px;
     padding: 3px 8px;
+    flex-shrink: 0;
   }
 
-  /* Right column — top right, narrower */
+  /* Right column — top right */
   #right-column {
     top: 10px;
     right: 10px;
-    max-width: 44vw;
+    max-width: 46vw;
   }
 
   #scenario-year-panel {
     min-width: 0;
-    width: 44vw;
+    width: 46vw;
     padding: 8px;
-    gap: 8px;
+    gap: 6px;
+  }
+
+  #scenario-grid {
+    gap: 4px;
   }
 
   .scenario-btn {
-    padding: 5px 4px;
+    padding: 4px 2px;
   }
 
-  .scenario-label { font-size: 9px; }
-  .scenario-code  { font-size: 8px; }
+  .scenario-label {
+    font-size: 8px;
+    line-height: 1.2;
+  }
 
-  #year-label { font-size: 18px; }
+  .scenario-code {
+    font-size: 7px;
+  }
+
+  #year-label { font-size: 16px; }
+
+  #scrubber-labels {
+    font-size: 7px;
+  }
 
   /* Timeline panel full width */
   #timeline-panel {
@@ -1129,15 +1156,15 @@ html, body {
     transform: none;
   }
 
-  /* Title card — constrained so it doesn't overlap click hint */
+  /* Title card bottom left */
   #bottom-left-column {
     bottom: 14px;
     left: 10px;
-    max-width: calc(55vw);
+    max-width: 55vw;
   }
 
-  #title-name     { font-size: 0.82rem; }
-  #title-tagline  { font-size: 0.62rem; }
+  #title-name    { font-size: 0.82rem; }
+  #title-tagline { font-size: 0.60rem; }
 
   /* Hide legend on mobile */
   #legend { display: none; }
