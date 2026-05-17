@@ -398,7 +398,39 @@ document.getElementById("home-btn").addEventListener("click", () =>
   map.flyTo({ center: [-119.5, 37.5], zoom: 5.0, duration: 800 })
 );
 
-// ── PILLS ─────────────────────────────────────────────────────
+// ── MOBILE: SCENARIO COLLAPSE ─────────────────────────────────
+
+const isMobile = () => window.innerWidth <= 600;
+
+if (isMobile()) {
+  document.getElementById("selector-panel-mobile").style.display = "flex";
+  document.getElementById("selector-panel").style.display = "none";
+  document.getElementById("scenario-collapse-btn").style.display = "flex";
+}
+
+document.getElementById("scenario-collapse-btn")?.addEventListener("click", () => {
+  const collapsible = document.getElementById("scenario-collapsible");
+  const chevron     = document.getElementById("scenario-chevron");
+  const collapsed   = collapsible.classList.toggle("collapsed");
+  chevron.style.transform = collapsed ? "rotate(-90deg)" : "rotate(0deg)";
+});
+
+// Sync mobile pills with desktop pills and vice versa
+document.querySelectorAll("#selector-panel-mobile .pill").forEach(btn => {
+  btn.addEventListener("click", () => {
+    // Update mobile pills
+    document.querySelectorAll("#selector-panel-mobile .pill").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    // Update desktop pills to match
+    document.querySelectorAll("#selector-panel .pill").forEach(p => {
+      p.classList.toggle("active", p.dataset.metric === btn.dataset.metric);
+    });
+    activeMetric = btn.dataset.metric;
+    updateMapLayer();
+    checkDeficitBadge();
+    if (clickedPoint) updateTimeline(clickedPoint.lat, clickedPoint.lng);
+  });
+});
 
 document.querySelectorAll(".pill").forEach(btn => {
   btn.addEventListener("click", () => {
