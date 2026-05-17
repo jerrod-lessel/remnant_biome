@@ -1076,7 +1076,7 @@ html, body {
 
 @media (max-width: 600px) {
 
-  /* Metric selector — top left, fixed narrow width */
+  /* Metric selector — top left */
   #top-left-wrap {
     top: 10px;
     left: 10px;
@@ -1092,15 +1092,21 @@ html, body {
     max-width: 46vw;
     width: 46vw;
     padding: 8px 10px;
+    overflow: visible;
+  }
+
+  .selector-group {
+    overflow: hidden;
   }
 
   /* Pills scroll horizontally instead of wrapping */
   .pill-row {
     flex-wrap: nowrap;
-    overflow-x: auto;
+    overflow-x: scroll;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 2px;
+    width: 100%;
   }
 
   .pill-row::-webkit-scrollbar { display: none; }
@@ -1109,6 +1115,7 @@ html, body {
     font-size: 10px;
     padding: 3px 8px;
     flex-shrink: 0;
+    white-space: nowrap;
   }
 
   /* Right column — top right */
