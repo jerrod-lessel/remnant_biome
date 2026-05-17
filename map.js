@@ -928,6 +928,12 @@ document.getElementById("export-pdf-btn").addEventListener("click", async functi
     // Attach to body so html2canvas can measure real dimensions
     document.body.appendChild(printEl);
 
+    if (typeof html2canvas === "undefined") {
+      console.error("html2canvas not available");
+      document.body.removeChild(printEl);
+      return;
+    }
+
     // Render to canvas
     const canvas = await html2canvas(printEl, {
       scale: 2,
@@ -942,7 +948,9 @@ document.getElementById("export-pdf-btn").addEventListener("click", async functi
 
     // Build PDF using jsPDF with manual multi-page slicing
     const imgData  = canvas.toDataURL("image/jpeg", 0.92);
-    const doc      = new window.jspdf.jsPDF("p", "mm", "letter");
+    const { jsPDF } = window.jspdf || {};
+    if (!jsPDF) { console.error("jsPDF not loaded"); return; }
+    const doc      = new jsPDF("p", "mm", "letter");
     const pageW    = doc.internal.pageSize.getWidth();
     const pageH    = doc.internal.pageSize.getHeight();
     const margin   = 10;
