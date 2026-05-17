@@ -1161,10 +1161,8 @@ document.getElementById("about-toggle").addEventListener("click", () => {
 // ── DISCLAIMER ────────────────────────────────────────────────
 
 document.getElementById("disclaimer-toggle").addEventListener("click", () => {
-  const card  = document.getElementById("disclaimer-card");
-  const panel = document.getElementById("disclaimer-panel");
-  panel.classList.toggle("hidden");
-  card.classList.toggle("open");
+  document.getElementById("disclaimer-panel").classList.toggle("hidden");
+  document.getElementById("disclaimer-toggle").classList.toggle("open");
 });
 
 // ── KEYBOARD ──────────────────────────────────────────────────
