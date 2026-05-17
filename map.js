@@ -925,26 +925,35 @@ document.getElementById("export-pdf-btn").addEventListener("click", async functi
       </div>
     `;
 
-    // Attach to body so html2canvas can measure real dimensions
-    document.body.appendChild(printEl);
+    // Create an isolated container outside normal layout so overflow:hidden on body doesn't clip it
+    const container = document.createElement("div");
+    container.style.cssText = "position:fixed;top:0;left:0;width:680px;overflow:visible;z-index:-1;opacity:0;pointer-events:none;";
+    container.appendChild(printEl);
+    document.documentElement.appendChild(container);
+
+    // Wait a frame for layout to settle
+    await new Promise(r => setTimeout(r, 100));
 
     if (typeof html2canvas === "undefined") {
       console.error("html2canvas not available");
-      document.body.removeChild(printEl);
+      document.documentElement.removeChild(container);
       return;
     }
 
-    // Render to canvas
+    // Render the full element — use scrollHeight from printEl itself
+    const fullHeight = printEl.scrollHeight;
     const canvas = await html2canvas(printEl, {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
       logging: false,
       width: 680,
-      height: printEl.scrollHeight,
+      height: fullHeight,
+      windowWidth: 680,
+      windowHeight: fullHeight,
     });
 
-    document.body.removeChild(printEl);
+    document.documentElement.removeChild(container);
 
     // Build PDF using jsPDF with manual multi-page slicing
     const imgData  = canvas.toDataURL("image/jpeg", 0.92);
