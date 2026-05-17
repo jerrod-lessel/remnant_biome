@@ -849,17 +849,26 @@ html, body {
    BOTTOM LEFT: TITLE CARD
 ============================================================ */
 
-#title-card {
+/* Bottom left column — title card + disclaimer stacked */
+#bottom-left-column {
   position: fixed;
   bottom: 28px;
   left: 14px;
   z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  max-width: 300px;
+}
+
+#title-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 12px;
   backdrop-filter: blur(12px);
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-  max-width: 300px;
+  width: 100%;
   overflow: hidden;
   pointer-events: all;
 }
@@ -936,6 +945,66 @@ html, body {
 }
 
 #about-panel a:hover { text-decoration: underline; }
+
+/* Disclaimer card — sits below the title card in bottom-left column */
+#disclaimer-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  width: 100%;
+  overflow: hidden;
+  pointer-events: all;
+}
+
+#disclaimer-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+#disclaimer-icon {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+#disclaimer-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--panel-text-muted);
+  flex: 1;
+}
+
+#disclaimer-chevron {
+  font-size: 0.7rem;
+  color: var(--panel-text-label);
+  transition: transform 0.2s;
+}
+
+#disclaimer-card.open #disclaimer-chevron {
+  transform: rotate(180deg);
+}
+
+#disclaimer-panel {
+  border-top: 1px solid rgba(62,207,207,0.12);
+  padding: 10px 13px 12px;
+  font-size: 0.72rem;
+  color: #7a9ab0;
+  line-height: 1.6;
+}
+
+#disclaimer-panel p {
+  margin: 0 0 0.5rem;
+}
+
+#disclaimer-panel p:last-child {
+  margin-bottom: 0;
+}
 
 /* ============================================================
    LEGEND
@@ -1026,7 +1095,7 @@ html, body {
     width: calc(100vw - 28px);
   }
 
-  #title-card { max-width: calc(100vw - 140px); }
+  #bottom-left-column { max-width: calc(100vw - 140px); }
 
   #legend { display: none; }
 
