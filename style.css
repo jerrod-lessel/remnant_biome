@@ -1007,6 +1007,13 @@ html, body {
   border-color: #3a5a70 !important;
   color: #4a6a80 !important;
   font-size: 10px !important;
+  display: block;
+  text-shadow: none;
+}
+
+/* Stack the two bars with no gap between them */
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale + .maplibregl-ctrl-scale {
+  margin-top: -1px;
 }
 
 /* ============================================================
