@@ -1,5 +1,12 @@
 /* ============================================================
    Remnant Biome - styles
+   VERSION: 2026-05-18.a
+
+   Changes from previous:
+   - Dual MapLibre scale bars now stack flush with no gap
+   - .maplibregl-ctrl wrapper margins zeroed in bottom-left
+   - margin-bottom offset applied only to first (bottom) bar
+   - text-shadow preserved on scale labels
    Consistent with Spectral Glimpse / LesselGeospatial design language
 ============================================================ */
 
@@ -388,13 +395,8 @@ html, body {
   text-align: center;
 }
 
-.scenario-btn.active .scenario-label {
-  color: var(--panel-accent);
-}
-
-.scenario-btn.active .scenario-code {
-  color: rgba(62,207,207,0.6);
-}
+.scenario-btn.active .scenario-label { color: var(--panel-accent); }
+.scenario-btn.active .scenario-code  { color: rgba(62,207,207,0.6); }
 
 /* Year scrubber */
 #year-scrubber {
@@ -403,9 +405,7 @@ html, body {
   gap: 6px;
 }
 
-#year-display {
-  text-align: center;
-}
+#year-display { text-align: center; }
 
 #year-label {
   font-size: 22px;
@@ -540,7 +540,6 @@ html, body {
   flex-shrink: 0;
 }
 
-/* "What does this mean?" button */
 #interpret-btn {
   display: flex;
   align-items: center;
@@ -614,17 +613,12 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-
-  /* Slide-in animation */
   transform: translateX(100%);
   transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-#interpret-sidebar.open {
-  transform: translateX(0);
-}
+#interpret-sidebar.open { transform: translateX(0); }
 
-/* Sidebar header */
 #sidebar-header {
   display: flex;
   align-items: flex-start;
@@ -686,7 +680,6 @@ html, body {
   color: var(--panel-text);
 }
 
-/* Sidebar scrollable body */
 #sidebar-body {
   flex: 1;
   overflow-y: auto;
@@ -694,22 +687,17 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-
-  /* Subtle scrollbar */
   scrollbar-width: thin;
   scrollbar-color: rgba(62,207,207,0.2) transparent;
 }
 
-#sidebar-body::-webkit-scrollbar {
-  width: 4px;
-}
+#sidebar-body::-webkit-scrollbar { width: 4px; }
 #sidebar-body::-webkit-scrollbar-track { background: transparent; }
 #sidebar-body::-webkit-scrollbar-thumb {
   background: rgba(62,207,207,0.2);
   border-radius: 2px;
 }
 
-/* Status block */
 #sidebar-status-block {
   display: flex;
   align-items: flex-start;
@@ -796,7 +784,6 @@ html, body {
   text-align: center;
 }
 
-/* Section blocks */
 .sidebar-section {
   display: flex;
   flex-direction: column;
@@ -817,7 +804,6 @@ html, body {
   line-height: 1.65;
 }
 
-/* Divider between sections */
 .sidebar-divider {
   height: 1px;
   background: var(--panel-border);
@@ -853,7 +839,6 @@ html, body {
    BOTTOM LEFT: TITLE CARD
 ============================================================ */
 
-/* Bottom left column */
 #bottom-left-column {
   position: fixed;
   bottom: 28px;
@@ -940,14 +925,9 @@ html, body {
   gap: 6px;
 }
 
-#about-panel a {
-  color: var(--panel-accent);
-  text-decoration: none;
-}
-
+#about-panel a { color: var(--panel-accent); text-decoration: none; }
 #about-panel a:hover { text-decoration: underline; }
 
-/* Disclaimer — inline inside about panel */
 #disclaimer-toggle {
   display: flex;
   align-items: center;
@@ -959,11 +939,7 @@ html, body {
   user-select: none;
 }
 
-#disclaimer-icon {
-  font-size: 0.85rem;
-  opacity: 0.6;
-  flex-shrink: 0;
-}
+#disclaimer-icon { font-size: 0.85rem; opacity: 0.6; flex-shrink: 0; }
 
 #disclaimer-label {
   font-size: 0.72rem;
@@ -978,9 +954,7 @@ html, body {
   transition: transform 0.2s;
 }
 
-#disclaimer-toggle.open #disclaimer-chevron {
-  transform: rotate(180deg);
-}
+#disclaimer-toggle.open #disclaimer-chevron { transform: rotate(180deg); }
 
 #disclaimer-panel {
   margin-top: 8px;
@@ -989,31 +963,38 @@ html, body {
   line-height: 1.6;
 }
 
-#disclaimer-panel p {
-  margin: 0 0 0.5rem;
+#disclaimer-panel p { margin: 0 0 0.5rem; }
+#disclaimer-panel p:last-child { margin-bottom: 0; }
+
+/* ============================================================
+   MAPLIBRE SCALE BAR
+   Two ScaleControl instances (metric + imperial) are added in
+   map.js. Zeroing the .maplibregl-ctrl wrapper margins in the
+   bottom-left corner makes them stack flush. The margin-bottom
+   offset that clears the title card is applied only to the
+   first (bottom) wrapper so the pair moves up as a unit.
+============================================================ */
+
+/* Zero wrapper margins so the two bars sit flush */
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl {
+  margin: 0 !important;
 }
 
-#disclaimer-panel p:last-child {
-  margin-bottom: 0;
-}
-
-.maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale {
-  margin-bottom: 110px;
-  margin-left: 14px;
-}
-
+/* Shared scale bar appearance */
 .maplibregl-ctrl-scale {
   background: rgba(13, 25, 38, 0.75) !important;
   border-color: #3a5a70 !important;
   color: #4a6a80 !important;
   font-size: 10px !important;
   display: block;
+  margin-left: 14px;
   text-shadow: 1px 1px #ffffff;
 }
 
-/* Stack the two bars with no gap between them */
-.maplibregl-ctrl-bottom-left .maplibregl-ctrl-scale + .maplibregl-ctrl-scale {
-  margin-top: -1px;
+/* Push the whole stacked pair above the title card —
+   only applied to the first (bottom) wrapper */
+.maplibregl-ctrl-bottom-left .maplibregl-ctrl:first-child .maplibregl-ctrl-scale {
+  margin-bottom: 110px;
 }
 
 /* ============================================================
@@ -1067,10 +1048,8 @@ html, body {
 
 .maplibregl-ctrl-attrib a { color: #5a9ab8 !important; }
 
-/* Hide the expand button MapLibre adds */
 .maplibregl-ctrl-attrib-button { display: none !important; }
 
-/* Remove container margin so attribution sits flush in corner */
 .maplibregl-ctrl-bottom-right {
   margin: 0 !important;
   padding: 0 !important;
@@ -1115,19 +1094,10 @@ html, body {
 
 @media (max-width: 600px) {
 
-  /* Zoom controls stay top left, vertical as normal */
-  #top-left-wrap {
-    top: 10px;
-    left: 10px;
-    gap: 8px;
-  }
+  #top-left-wrap { top: 10px; left: 10px; gap: 8px; }
 
-  /* Hide selector panel from top left on mobile */
-  #selector-panel {
-    display: none;
-  }
+  #selector-panel { display: none; }
 
-  /* Right column stacks everything vertically */
   #right-column {
     top: 10px;
     right: 10px;
@@ -1135,7 +1105,6 @@ html, body {
     gap: 6px;
   }
 
-  /* Selector panel moves into right column on mobile via JS class */
   #selector-panel-mobile {
     background: var(--card-bg);
     border: 1px solid var(--card-border);
@@ -1148,16 +1117,8 @@ html, body {
     width: 100%;
   }
 
-  #selector-panel-mobile .pill-row {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  #selector-panel-mobile .pill {
-    font-size: 10px;
-    padding: 3px 8px;
-  }
-
+  #selector-panel-mobile .pill-row { flex-wrap: wrap; gap: 4px; }
+  #selector-panel-mobile .pill { font-size: 10px; padding: 3px 8px; }
   #selector-panel-mobile .selector-label {
     font-size: 9px;
     font-weight: 600;
@@ -1166,13 +1127,7 @@ html, body {
     text-transform: uppercase;
   }
 
-  /* Scenario panel collapsible on mobile */
-  #scenario-year-panel {
-    min-width: 0;
-    width: 100%;
-    padding: 8px;
-    gap: 6px;
-  }
+  #scenario-year-panel { min-width: 0; width: 100%; padding: 8px; gap: 6px; }
 
   #scenario-collapse-btn {
     display: flex;
@@ -1191,19 +1146,15 @@ html, body {
   }
 
   #scenario-collapse-btn span { color: var(--panel-text-label); }
+  #scenario-collapsible.collapsed { display: none; }
 
-  #scenario-collapsible.collapsed {
-    display: none;
-  }
-
-  #scenario-grid { gap: 4px; }
-  .scenario-btn  { padding: 4px 2px; }
+  #scenario-grid  { gap: 4px; }
+  .scenario-btn   { padding: 4px 2px; }
   .scenario-label { font-size: 8px; line-height: 1.2; }
   .scenario-code  { font-size: 7px; }
   #year-label     { font-size: 16px; }
   #scrubber-labels { font-size: 7px; }
 
-  /* Click hint multiline */
   #click-hint {
     bottom: 100px;
     white-space: normal;
@@ -1214,7 +1165,6 @@ html, body {
     line-height: 1.4;
   }
 
-  /* Timeline panel full width */
   #timeline-panel {
     bottom: 70px;
     width: calc(100vw - 20px);
@@ -1222,19 +1172,13 @@ html, body {
     transform: none;
   }
 
-  /* Title card bottom left */
-  #bottom-left-column {
-    bottom: 14px;
-    left: 10px;
-    max-width: 55vw;
-  }
+  #bottom-left-column { bottom: 14px; left: 10px; max-width: 55vw; }
 
   #title-name    { font-size: 0.82rem; }
   #title-tagline { font-size: 0.60rem; }
 
   #legend { display: none; }
 
-  /* Sidebar slides up from bottom */
   #interpret-sidebar {
     width: 100vw;
     border-left: none;
@@ -1247,9 +1191,7 @@ html, body {
     border-radius: 16px 16px 0 0;
   }
 
-  #interpret-sidebar.open {
-    transform: translateY(0);
-  }
+  #interpret-sidebar.open { transform: translateY(0); }
 }
 
 /* ============================================================
@@ -1271,9 +1213,7 @@ html, body {
   transition: opacity 0.2s ease;
 }
 
-#pill-tooltip.visible {
-  opacity: 1;
-}
+#pill-tooltip.visible { opacity: 1; }
 
 #pill-tooltip-title {
   font-size: 11px;
@@ -1334,9 +1274,7 @@ html, body {
   transition: opacity 0.2s ease;
 }
 
-#scenario-tooltip.visible {
-  opacity: 1;
-}
+#scenario-tooltip.visible { opacity: 1; }
 
 #scenario-tooltip-title {
   font-size: 11px;
