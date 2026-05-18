@@ -142,6 +142,12 @@ const map = new maplibregl.Map({
   attributionControl: true,
 });
 
+// Add both scale bars
+map.addControl(new maplibregl.ScaleControl({
+  maxWidth: 120,
+  unit: 'metric'
+}), 'bottom-left');
+
 map.addControl(new maplibregl.ScaleControl({
   maxWidth: 120,
   unit: 'imperial'
