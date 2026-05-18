@@ -142,6 +142,11 @@ const map = new maplibregl.Map({
   attributionControl: true,
 });
 
+map.addControl(new maplibregl.ScaleControl({
+  maxWidth: 120,
+  unit: 'imperial'
+}), 'bottom-left');
+
 // ── LOAD METADATA ─────────────────────────────────────────────
 
 async function loadMetadata() {
