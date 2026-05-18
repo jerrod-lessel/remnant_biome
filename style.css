@@ -1051,6 +1051,16 @@ html, body {
 /* Hide the expand button MapLibre adds */
 .maplibregl-ctrl-attrib-button { display: none !important; }
 
+/* Remove container margin so attribution sits flush in corner */
+.maplibregl-ctrl-bottom-right {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+  margin: 0 !important;
+}
+
 /* ============================================================
    CLICK MARKER
 ============================================================ */
