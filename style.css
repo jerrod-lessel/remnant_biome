@@ -405,7 +405,10 @@ html, body {
   gap: 6px;
 }
 
-#year-display { text-align: center; }
+#year-display { 
+   text-align: center; 
+   padding-top: 4px;
+}
 
 #year-label {
   font-size: 22px;
