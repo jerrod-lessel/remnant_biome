@@ -1008,7 +1008,7 @@ html, body {
   color: #4a6a80 !important;
   font-size: 10px !important;
   display: block;
-  text-shadow: none;
+  text-shadow: 1px 1px #ffffff;
 }
 
 /* Stack the two bars with no gap between them */
