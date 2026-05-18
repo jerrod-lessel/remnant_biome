@@ -145,12 +145,12 @@ const map = new maplibregl.Map({
 // Add both scale bars
 map.addControl(new maplibregl.ScaleControl({
   maxWidth: 120,
-  unit: 'metric'
+  unit: 'imperial'
 }), 'bottom-left');
 
 map.addControl(new maplibregl.ScaleControl({
   maxWidth: 120,
-  unit: 'imperial'
+  unit: 'metric'
 }), 'bottom-left');
 
 // ── LOAD METADATA ─────────────────────────────────────────────
