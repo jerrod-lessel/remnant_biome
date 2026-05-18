@@ -993,8 +993,9 @@ html, body {
 
 /* Push the whole stacked pair above the title card —
    only applied to the first (bottom) wrapper */
-.maplibregl-ctrl-bottom-left .maplibregl-ctrl:first-child .maplibregl-ctrl-scale {
-  margin-bottom: 110px;
+.maplibregl-ctrl-bottom-left {
+  margin-bottom: 110px !important;
+  margin-left: 14px !important;
 }
 
 /* ============================================================
