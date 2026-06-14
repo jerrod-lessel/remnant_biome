@@ -1,0 +1,15 @@
+name: gitleaks
+on:
+  workflow_dispatch:   # lets you run it manually with a button
+  push:                # also runs automatically on future pushes
+jobs:
+  scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0    # 0 = grab the FULL history, not just latest commit
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
